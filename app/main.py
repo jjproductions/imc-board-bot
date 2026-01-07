@@ -1,11 +1,56 @@
 from fastapi import FastAPI
 from .routes.api import router as api_router
 from .settings import settings
+import logging
+from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+
+load_dotenv()
+
+# Use the Lifespan context manager instead of the deprecated @app.on_event
+from .deps import init_models
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """App lifespan: initialize heavy resources and optionally start debug listener.
+
+    This runs once when the application starts and yields control to the app.
+    Using lifespan avoids the deprecated `@app.on_event("startup")` API.
+    """
+    # Non-blocking debugpy listener for local development (optional)
+    try:
+        import debugpy  # type: ignore
+    except Exception:
+        debugpy = None
+
+    if debugpy is not None:
+        try:
+            debugpy.listen(("0.0.0.0", 5678))
+            logging.getLogger("app").info("debugpy listening on 0.0.0.0:5678 (attach with VS Code)")
+        except Exception as e:
+            logging.getLogger("app").exception("Failed to start debugpy listener: %s", e)
+
+    # Initialize models/tokenizer now so errors surface on startup
+    try:
+        init_models()
+        logging.getLogger("app").info("Models initialized")
+    except Exception as e:
+        logging.getLogger("app").exception("Model initialization failed: %s", e)
+        # Re-raise to prevent app from starting in a broken state
+        raise
+
+    try:
+        yield
+    finally:
+        # optional cleanup can go here
+        pass
+
 
 # -----------------------------
 # FastAPI App
 # -----------------------------
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 # Routes
 app.include_router(api_router, prefix="/api")

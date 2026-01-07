@@ -28,8 +28,8 @@ def init_models() -> None:
             from sentence_transformers import SentenceTransformer
             from transformers import AutoTokenizer
 
-            _embedder = SentenceTransformer(settings.vector.embedding_model_name)
-            _tokenizer = AutoTokenizer.from_pretrained(settings.vector.embedding_model_name)
+            _embedder = SentenceTransformer(settings.vector.embedding_model)
+            _tokenizer = AutoTokenizer.from_pretrained(settings.vector.embedding_model)
             _init_error = None
         except Exception as e:
             _embedder = None

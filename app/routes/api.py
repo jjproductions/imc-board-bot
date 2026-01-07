@@ -103,7 +103,7 @@ def health():
         "status": "ok",
         "qdrant_url": settings.qdrant.url,
         "collection_default": settings.qdrant.default_collection,
-        "embedding_model": settings.vector.embedding_model_name,
+        "embedding_model": settings.vector.embedding_model,
         "embedding_dim": settings.vector.embedding_dim,
     }
 
