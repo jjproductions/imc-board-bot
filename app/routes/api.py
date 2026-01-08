@@ -54,9 +54,11 @@ def ensure_collection(collection_name: str, vector_dim: int):
         return
 
     try:
+        # The qdrant-client API expects the keyword `vectors_config` for newer versions.
+        # Use `vectors_config` to be compatible with qdrant-client >=1.0.
         qdrant.create_collection(
             collection_name=collection_name,
-            vectors=VectorParams(size=vector_dim, distance=Distance.COSINE),
+            vectors_config=VectorParams(size=vector_dim, distance=Distance.COSINE),
         )
     except Exception as e:
         raise RuntimeError(f"Failed to create qdrant collection '{collection_name}': {e}")
@@ -152,7 +154,7 @@ def ingest_doc(
             "section_path": c["context_path"],
             "block_ids": c["block_ids"],
             "overlap_from_previous": c["overlap_from_previous"],
-            "embedding_model": settings.vector.embedding_model_name,
+            "embedding_model": settings.vector.embedding_model,
         }
         points.append(QdrantPointStruct(id=chunk_id, vector=vec, payload=payload))
 

@@ -55,7 +55,7 @@ class VectorSettings(BaseModel):
 class QdrantSettings(BaseModel):
     url: AnyUrl = "http://localhost:6333"
     api_key: Optional[str] = None  # None is fine for local
-    default_collection: str = "docling_chunks"
+    default_collection: str = "board-policies"
 
 class AppSettings(BaseSettings):
     """

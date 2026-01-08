@@ -11,7 +11,8 @@ def list_chunks() -> List[Chunk]:
 
 def create_chunk(chunk_in: ChunkCreate) -> Chunk:
     global _next_id
-    chunk = Chunk(id=_next_id, **chunk_in.dict())
+    # pydantic v2: use model_dump() instead of dict()
+    chunk = Chunk(id=_next_id, **chunk_in.model_dump())
     _store[_next_id] = chunk
     _next_id += 1
     return chunk
@@ -23,7 +24,8 @@ def get_chunk(chunk_id: int) -> Optional[Chunk]:
 
 def update_chunk(chunk_id: int, chunk_in: ChunkCreate) -> Optional[Chunk]:
     if chunk_id in _store:
-        chunk = Chunk(id=chunk_id, **chunk_in.dict())
+        # pydantic v2: use model_dump() instead of dict()
+        chunk = Chunk(id=chunk_id, **chunk_in.model_dump())
         _store[chunk_id] = chunk
         return chunk
     return None
