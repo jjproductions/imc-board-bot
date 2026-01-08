@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
-# Use the Lifespan context manager instead of the deprecated @app.on_event
 from .deps import init_models
 
-
+# Use the Lifespan context manager instead of the deprecated @app.on_event
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """App lifespan: initialize heavy resources and optionally start debug listener.
@@ -19,9 +19,10 @@ async def lifespan(app: FastAPI):
     Using lifespan avoids the deprecated `@app.on_event("startup")` API.
     """
     # Non-blocking debugpy listener for local development (optional)
-    try:
+    try:        
         import debugpy  # type: ignore
     except Exception:
+        logging.getLogger("app").warning("debugpy not installed, skipping debug listener")
         debugpy = None
 
     if debugpy is not None:

@@ -1,12 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import List, Optional
 from app import crud, schemas
 from ..settings import settings
 from ..schemas import IngestResponse, DoclingDocument
 from ..utilities import embed_texts, chunk_blocks, batched
-from ..deps import get_embedder, get_tokenizer
+import logging
 import uuid
 from qdrant_client.models import PointStruct as QdrantPointStruct
+import subprocess
+import tempfile
+import os
+import json
 
 router = APIRouter()
 
@@ -169,3 +173,131 @@ def ingest_doc(
         points_upserted=upserted,
         source_id=doc.source_id
     )
+
+
+@router.post("/ingest-file", response_model=IngestResponse)
+def ingest_file(
+    file: UploadFile = File(...),
+    collection: Optional[str] = Form(None),
+    max_tokens: int = Form(300),
+    overlap_tokens: int = Form(50),
+    batch_size: int = Form(256),
+    source_id: Optional[str] = Form(None),
+):
+    """
+    Accept an uploaded PDF, parse it with the external `docling` CLI into
+    a flat JSON/document form, convert to `DoclingDocument` if necessary,
+    then call the existing `ingest_doc` logic to chunk/embed/upsert.
+
+    If the `docling` CLI is not available, this endpoint returns 501 and
+    a short message explaining how to provide pre-parsed JSON instead.
+    """
+    logging.getLogger("app").info(f"Received file upload: {file.filename} ({file.content_type}), source_id={source_id}")    
+    # Save uploaded file to a temp file
+    suffix = os.path.splitext(file.filename)[1] or ".pdf"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp_path = tmp.name
+        tmp.write(file.file.read())
+
+    # Prefer an HTTP Docling service if `DOCLING_URL` is configured (e.g. Docker)
+    docling_url = os.environ.get("DOCLING_URL") or os.environ.get("DOCLING_HTTP_URL")
+    parsed = None
+    if docling_url:
+        # Use the Docling HTTP service (expects a /parse endpoint returning JSON)
+        try:
+            import requests
+        except Exception:
+            os.unlink(tmp_path)
+            raise HTTPException(status_code=500, detail="Missing dependency 'requests' required to call Docling HTTP service.")
+
+        parse_url = docling_url.rstrip("/") + "/v1/convert/file"
+        logging.getLogger("app").info(f"Using Docling HTTP service at {parse_url} to parse uploaded file.") 
+        try:
+            with open(tmp_path, "rb") as fh:
+                files = {"files": (file.filename, fh, file.content_type or "application/pdf")}
+                # Request Docling HTTP service using the flat profile
+                resp = requests.post(parse_url, files=files, params={"profile": "flat", "to_formats": "json"}, timeout=(5, 300))
+        except Exception as e:
+            os.unlink(tmp_path)
+            raise HTTPException(status_code=502, detail=f"Failed to contact docling service: {e}")
+
+        # Clean up temp file
+        os.unlink(tmp_path)
+
+        if resp.status_code != 200:
+            msg = (resp.text or "").strip()[:1000]
+            raise HTTPException(status_code=500, detail=f"docling service error: {resp.status_code} {msg}")
+
+        try:
+            parsed = resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"docling returned non-JSON: {e}")
+    else:
+        # Fallback to invoking local `docling` CLI
+        try:
+            # Call docling CLI with explicit profile=flat
+            cmd = ["docling", "parse", "--profile", "flat", "--format", "json", tmp_path]
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        except FileNotFoundError:
+            os.unlink(tmp_path)
+            raise HTTPException(
+                status_code=501,
+                detail=("`docling` CLI not found on the server. Either install `docling` "
+                        "or set DOCLING_URL to point at a docling HTTP service."),
+            )
+
+        # Clean up temp file
+        os.unlink(tmp_path)
+
+        if proc.returncode != 0:
+            stderr = proc.stderr.strip() if proc.stderr else ""
+            raise HTTPException(status_code=500, detail=f"docling parse failed: {stderr}")
+
+        try:
+            parsed = json.loads(proc.stdout)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to parse docling output as JSON: {e}")
+
+    # If parsed already matches DoclingDocument (has source_id & blocks), use it.
+    if isinstance(parsed, dict) and parsed.get("source_id") and parsed.get("blocks"):
+        doc_obj = DoclingDocument.parse_obj(parsed)
+    else:
+        # Fallback conversion: expect a `document` object with `md_content` (markdown)
+        info = parsed.get("document", {}) if isinstance(parsed, dict) else {}
+        md = info.get("md_content") or info.get("text") or info.get("content") or ""
+        title = source_id or info.get("filename") or file.filename
+        # Simple heading-aware split (reuse chunking expectations from ingestion flow)
+        # We'll split headings (Markdown) and paragraphs into blocks.
+        import re
+
+        pattern = re.compile(r'^(?P<header>#{1,6})\s*(?P<title>.+)$', re.MULTILINE)
+        blocks = []
+        idc = 1
+        matches = list(pattern.finditer(md))
+        if not matches:
+            paras = [p.strip() for p in re.split(r"\n\s*\n", md) if p.strip()]
+            for p in paras:
+                blocks.append({"id": f"b{idc}", "type": "paragraph", "text": p})
+                idc += 1
+        else:
+            if matches and matches[0].start() > 0:
+                intro = md[: matches[0].start()].strip()
+                for p in [pp.strip() for pp in re.split(r"\n\s*\n", intro) if pp.strip()]:
+                    blocks.append({"id": f"b{idc}", "type": "paragraph", "text": p})
+                    idc += 1
+            for i, m in enumerate(matches):
+                header = m.group("header")
+                title_text = m.group("title").strip()
+                blocks.append({"id": f"b{idc}", "type": "heading", "text": title_text, "level": len(header)})
+                idc += 1
+                endpos = matches[i + 1].start() if i + 1 < len(matches) else len(md)
+                body = md[m.end() : endpos].strip()
+                if body:
+                    for p in [pp.strip() for pp in re.split(r"\n\s*\n", body) if pp.strip()]:
+                        blocks.append({"id": f"b{idc}", "type": "paragraph", "text": p})
+                        idc += 1
+
+        doc_obj = DoclingDocument.parse_obj({"source_id": title, "title": title, "blocks": blocks})
+
+    # Delegate to the existing ingest_doc logic to avoid duplication
+    return ingest_doc(doc_obj, collection=collection, max_tokens=max_tokens, overlap_tokens=overlap_tokens, batch_size=batch_size)

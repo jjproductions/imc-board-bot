@@ -57,6 +57,9 @@ class QdrantSettings(BaseModel):
     api_key: Optional[str] = None  # None is fine for local
     default_collection: str = "board-policies"
 
+class DoclingSettings(BaseModel):
+    url: AnyUrl = "http://localhost:5001"
+
 class AppSettings(BaseSettings):
     """
     Top-level configuration. Loads from:
@@ -81,6 +84,7 @@ class AppSettings(BaseSettings):
     database: DatabaseSettings = DatabaseSettings()
     vector: VectorSettings = VectorSettings()
     qdrant: QdrantSettings = QdrantSettings()
+    docling: DoclingSettings = DoclingSettings()
 
     # Paths
     data_dir: Path = PROJECT_ROOT / "data"
