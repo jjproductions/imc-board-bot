@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import re
 from .deps import get_tokenizer, get_embedder
 from .schemas import DoclingBlock
+import logging
 
 
 def normalize_whitespace(text: str) -> str:
@@ -86,6 +87,8 @@ def chunk_blocks(
     buffer_tokens = 0
     chunks: List[Dict[str, Any]] = []
 
+    log = logging.getLogger("app")
+
     def current_context_path() -> str:
         return " > ".join([h for _, h in context_stack])
 
@@ -166,11 +169,19 @@ def chunk_blocks(
             h_text = normalize_whitespace(b.text or "")
             if not h_text:
                 continue
+            # Flush any buffered content first so it remains associated
+            # with the previous heading/context. Updating the context
+            # before flushing caused previous text to be attached to
+            # the new (following) heading.
+            flush_buffer()
             level = b.level or 1
             context_stack = [h for h in context_stack if h[0] < level]
             context_stack.append((level, h_text))
-            flush_buffer()
         elif b.type in {"paragraph", "list_item", "caption", "footnote"}:
+            # print("Block:", b.model_dump())
+            # print("Block JSON:\n", b.model_dump_json(indent=2))
+            # log.debug("Block: %s", b.model_dump())             # dumps via str(); safe but not pretty
+            # log.debug("Block JSON:\n%s", b.model_dump_json(indent=2))  # full pretty json in logs
             add_text_with_window(normalize_whitespace(b.text or ""), b.id, b.page)
         elif b.type == "table":
             md = table_to_markdown(b.meta)

@@ -1,0 +1,16 @@
+
+### Docling convert (multipart)
+POST http://localhost:5001/v1/convert/file
+Content-Type: multipart/form-data; boundary=MyBoundary
+
+--MyBoundary
+Content-Disposition: form-data; name="files"; filename="Bylaws revised 2022 v2.1 - partial.pdf"
+Content-Type: application/pdf
+
+< ./data/Bylaws revised 2022 v2.1 - partial.pdf
+--MyBoundary
+Content-Disposition: form-data; name="options"
+Content-Type: application/json
+
+{"to_formats":["json"],"pdf_backend":"dlparse_v4","do_ocr":false,"do_table_structure":true,"table_mode":"accurate"}
+--MyBoundary--

@@ -214,9 +214,19 @@ def ingest_file(
         logging.getLogger("app").info(f"Using Docling HTTP service at {parse_url} to parse uploaded file.") 
         try:
             with open(tmp_path, "rb") as fh:
-                files = {"files": (file.filename, fh, file.content_type or "application/pdf")}
+                files = {
+                    "files": (file.filename, fh, file.content_type or "application/pdf"),
+                    "options": (None, json.dumps({
+                            "to_formats": ["json"],          # list form is also accepted
+                            "pdf_backend": "dlparse_v4",
+                            "do_ocr": False,
+                            "do_table_structure": True,
+                            "table_mode": "accurate"
+                        }), "application/json")
+
+                    }
                 # Request Docling HTTP service using the flat profile
-                resp = requests.post(parse_url, files=files, params={"profile": "flat", "to_formats": "json"}, timeout=(5, 300))
+                resp = requests.post(parse_url, files=files, timeout=(5, 300))
         except Exception as e:
             os.unlink(tmp_path)
             raise HTTPException(status_code=502, detail=f"Failed to contact docling service: {e}")
@@ -230,12 +240,15 @@ def ingest_file(
 
         try:
             parsed = resp.json()
+            dump = parsed
+            print("Parsed JSON from Docling service:\n", json.dumps(dump.keys(), indent=2, ensure_ascii=False))
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"docling returned non-JSON: {e}")
     else:
         # Fallback to invoking local `docling` CLI
         try:
             # Call docling CLI with explicit profile=flat
+            print("Invoking local `docling` CLI to parse uploaded file...")
             cmd = ["docling", "parse", "--profile", "flat", "--format", "json", tmp_path]
             proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         except FileNotFoundError:
@@ -260,9 +273,34 @@ def ingest_file(
 
     # If parsed already matches DoclingDocument (has source_id & blocks), use it.
     if isinstance(parsed, dict) and parsed.get("source_id") and parsed.get("blocks"):
-        doc_obj = DoclingDocument.parse_obj(parsed)
+        # Normalize possible page information that may be embedded in block.meta
+        # or under different keys produced by different docling versions/backends.
+        print("Normalizing parsed blocks for page information...")
+        for b in parsed.get("blocks", []):
+            print("Parsed Block JSON:\n", json.dumps(b, indent=2))
+            if b.get("page") is None:
+                meta = b.get("meta") or {}
+                # Common alternative keys where page might live
+                for key in ("page", "page_number", "pageno", "pageNo"):
+                    # direct key on block
+                    if key in b and b.get(key) is not None:
+                        try:
+                            b["page"] = int(b.get(key))
+                            break
+                        except Exception:
+                            pass
+                    # inside meta
+                    if key in meta and meta.get(key) is not None:
+                        try:
+                            b["page"] = int(meta.get(key))
+                            break
+                        except Exception:
+                            pass
+
+        doc_obj = DoclingDocument.model_validate(parsed)
     else:
         # Fallback conversion: expect a `document` object with `md_content` (markdown)
+        print("Converting parsed output to DoclingDocument from markdown content...")
         info = parsed.get("document", {}) if isinstance(parsed, dict) else {}
         md = info.get("md_content") or info.get("text") or info.get("content") or ""
         title = source_id or info.get("filename") or file.filename
@@ -297,7 +335,7 @@ def ingest_file(
                         blocks.append({"id": f"b{idc}", "type": "paragraph", "text": p})
                         idc += 1
 
-        doc_obj = DoclingDocument.parse_obj({"source_id": title, "title": title, "blocks": blocks})
+        doc_obj = DoclingDocument.model_validate({"source_id": title, "title": title, "blocks": blocks})
 
     # Delegate to the existing ingest_doc logic to avoid duplication
     return ingest_doc(doc_obj, collection=collection, max_tokens=max_tokens, overlap_tokens=overlap_tokens, batch_size=batch_size)
