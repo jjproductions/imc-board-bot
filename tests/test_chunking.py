@@ -11,7 +11,7 @@ def test_heading_context_assignment():
     ]
 
     # Parse to DoclingBlock Pydantic models (utilities.expect that shape)
-    parsed = [DoclingBlock.parse_obj(b) for b in blocks]
+    parsed = [DoclingBlock.model_validate(b) for b in blocks]
 
     chunks = chunk_blocks(parsed, max_tokens=200)
 

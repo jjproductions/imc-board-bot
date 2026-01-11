@@ -6,9 +6,21 @@ Quickstart
 
 1. Create a virtualenv and activate it (recommended).
 2. Install dependencies:
+3. Download embedding models
 
-```bash
+````bash
 python -m pip install -r requirements.txt
+
+# Make executable (optional)
+chmod +x scripts/download_models.py
+
+# Default locations: ./models/bge-m3 and ./models/docling
+python scripts/download_models.py
+
+# With explicit options
+python scripts/download_models.py --models-dir ./models --hf-revision main --retries 3
+
+
 Board Policy Bot — FastAPI service
 
 This repository contains a small FastAPI service used as a retrieval/ingest
@@ -18,6 +30,7 @@ endpoints for chunks.
 
 This README documents how to run, debug, and develop locally plus a sequence
 diagram showing a typical ingest/search request flow.
+
 
 --
 
@@ -41,7 +54,7 @@ diagram showing a typical ingest/search request flow.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
+````
 
 2. Install dependencies:
 
@@ -110,28 +123,34 @@ pip install debugpy
 ```
 
 2. The application starts a non-blocking debugpy listener on port `5678` in
-	 development via the app lifespan (if `debugpy` is installed). Start Uvicorn
-	 normally (see Quickstart), then attach from VS Code.
+   development via the app lifespan (if `debugpy` is installed). Start Uvicorn
+   normally (see Quickstart), then attach from VS Code.
 
 3. Example `.vscode/launch.json` attach config (safe to commit):
 
 ```json
 {
-	"version": "0.2.0",
-	"configurations": [
-		{
-			"name": "Attach to FastAPI (debugpy)",
-			"type": "python",
-			"request": "attach",
-			"connect": { "host": "localhost", "port": 5678 },
-			"pathMappings": [ { "localRoot": "${workspaceFolder}", "remoteRoot": "${workspaceFolder}" } ],
-			"subProcess": true
-		}
-	]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to FastAPI (debugpy)",
+      "type": "python",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5678 },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "${workspaceFolder}"
+        }
+      ],
+      "subProcess": true
+    }
+  ]
 }
 ```
 
 Notes:
+
 - Use `subProcess: true` to attach to the worker process when `--reload` is used.
 - Do not leave `debugpy.wait_for_client()` or debug listeners enabled in production.
 
@@ -140,12 +159,12 @@ Notes:
 ## Design notes / runtime behavior
 
 - Heavy ML resources (embedding model + tokenizer) are initialized via
-	`app.deps.init_models()` during application lifespan startup. This causes
-	the app to fail fast when a model is misconfigured or missing.
+  `app.deps.init_models()` during application lifespan startup. This causes
+  the app to fail fast when a model is misconfigured or missing.
 - To avoid circular imports and keep module imports light, `app.deps` exposes
-	lazy getters (`get_embedder()` / `get_tokenizer()`) used by `utilities.py`.
+  lazy getters (`get_embedder()` / `get_tokenizer()`) used by `utilities.py`.
 - Chunking is token-aware and heading-aware (see `app/utilities.py`) and
-	preserves `section_path`, `block_ids`, and token counts for each chunk.
+  preserves `section_path`, `block_ids`, and token counts for each chunk.
 
 --
 
@@ -187,23 +206,24 @@ sequenceDiagram
 ## CI / tests
 
 - Tests are run with `pytest`. The test suite uses lightweight imports to
-	avoid loading heavy models; heavy integration tests should be run in a CI
-	environment with the required dependencies installed.
+  avoid loading heavy models; heavy integration tests should be run in a CI
+  environment with the required dependencies installed.
 
 --
 
 ## Should I commit `.vscode/launch.json`?
 
 - If the launch config is generic (uses `${workspaceFolder}` path mappings and
-	no secrets) it's useful to commit and share. If it contains local absolute
-	paths or personal preferences, keep it out of VCS and provide a
-	`launch.json.example` instead.
+  no secrets) it's useful to commit and share. If it contains local absolute
+  paths or personal preferences, keep it out of VCS and provide a
+  `launch.json.example` instead.
 
 --
 
 If you'd like, I can also:
+
 - add a committed `/.vscode/launch.json.example` and update `.gitignore` to
-	ignore local `/.vscode/launch.json`, or
+  ignore local `/.vscode/launch.json`, or
 - add example Docling JSON and a small script to run a sample ingest.
 
 Questions? Tell me which of those you'd like and I'll patch the repo.

@@ -141,7 +141,7 @@ export QDRANT_API_KEY=        # optional for local
 export QDRANT_COLLECTION=docling_chunks
 
 # embeddings (defaults)
-export EMBEDDING_MODEL_NAME=BAAI/bge-m3
+export EMBEDDING_MODEL=BAAI/bge-m3
 export EMBEDDING_DIM=1024
 ```
 
@@ -189,7 +189,7 @@ services:
     environment:
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_COLLECTION=docling_chunks
-      - EMBEDDING_MODEL_NAME=BAAI/bge-m3
+      - EMBEDDING_MODEL=BAAI/bge-m3
       - EMBEDDING_DIM=1024
     depends_on:
       - qdrant
@@ -201,7 +201,7 @@ services:
     environment:
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_COLLECTION=docling_chunks
-      - EMBEDDING_MODEL_NAME=BAAI/bge-m3
+      - EMBEDDING_MODEL=BAAI/bge-m3
       - EMBEDDING_DIM=1024
     depends_on:
       - qdrant

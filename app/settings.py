@@ -1,6 +1,5 @@
-
 # src/my_project/settings.py
-#from __future__ import annotations
+# from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -12,7 +11,7 @@ from pydantic import computed_field
 
 # ---- Project paths ----------------------------------------------------------
 # Adjust parents[...] if your nesting differs.
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 # Determine which environment to load (default: development)
 # OS env has highest precedence. If not set, we use "development".
@@ -27,11 +26,13 @@ if not ENV_FILE.exists():
 
 # ---- Settings sections ------------------------------------------------------
 
+
 class ServerSettings(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8000
     reload: bool = True  # dev convenience
     workers: int = 1
+
 
 class SecuritySettings(BaseModel):
     secret_key: str = "CHANGE_ME_dev_only"
@@ -40,25 +41,46 @@ class SecuritySettings(BaseModel):
     allow_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allow_headers: list[str] = ["*"]
 
+
 class DatabaseSettings(BaseModel):
     url: Optional[AnyUrl] = None  # e.g. postgresql+asyncpg://user:pass@host/db
     echo: bool = False
     pool_size: int = 10
 
-class VectorSettings(BaseModel):
+
+class VectorSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(ENV_FILE),
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",  # enables VECTOR__EMBEDDING_MODEL → embedding_model
+        env_prefix="VECTOR__",  # make the mapping clean for all fields
+        extra="ignore",
+    )
+
     # Your default preferences
-    embedding_model: str = "BAAI/bge-m3"
+    embedding_model: str = Field(default="BAAI/bge-m3", env="EMBEDDING_MODEL")
     embedding_dim: int = Field(default=1024, ge=1)
     normalized: bool = True
     similarity_metric: Literal["cosine", "dot"] = "cosine"
+
 
 class QdrantSettings(BaseModel):
     url: AnyUrl = "http://localhost:6333"
     api_key: Optional[str] = None  # None is fine for local
     default_collection: str = "board-policies"
 
-class DoclingSettings(BaseModel):
-    url: AnyUrl = "http://localhost:5001"
+
+class DoclingSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(ENV_FILE),
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",  # enables VECTOR__EMBEDDING_MODEL → embedding_model
+        env_prefix="DOCLING__",  # make the mapping clean for all fields
+        extra="ignore",
+    )
+    url: Optional[AnyUrl] = None
+    artifact_path: Optional[str] = "NA"
+
 
 class AppSettings(BaseSettings):
     """
@@ -67,6 +89,7 @@ class AppSettings(BaseSettings):
     2) .env.<ENV> file (or .env fallback)
     3) Defaults in code (here)
     """
+
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
@@ -76,8 +99,11 @@ class AppSettings(BaseSettings):
     # Core
     app_name: str = "Board Policy Bot API"
     environment: Literal["development", "staging", "production"] = ENV  # bound to ENV
-    debug: bool = (ENV == "development")
-
+    debug: bool = ENV == "development"
+    file_name_separator: str = Field(default="__-__", env="FILE_NAME_SEPARATOR")
+    document_repository_path: Optional[str] = Field(
+        default=None, env="DOCUMENT_REPOSITORY_PATH"
+    )
     # Sections
     server: ServerSettings = ServerSettings()
     security: SecuritySettings = SecuritySettings()
@@ -107,9 +133,16 @@ class AppSettings(BaseSettings):
             "allow_headers": self.security.allow_headers,
         }
 
+
 # Instantiate a singleton and fail fast on invalid configuration
 try:
     settings = AppSettings()
+    print(
+        f"models dir: {settings.models_dir}, \
+          embedding_model: {settings.vector.embedding_model}, \
+            docling_artifact_path: {settings.docling.artifact_path}"
+    )  # --- IGNORE ---
+    print("ENV_FILE:", ENV_FILE)  # --- IGNORE ---
 except ValidationError as e:
     # Raise a clear error at startup if configuration is invalid
     raise RuntimeError(f"Invalid configuration in {ENV_FILE}: {e}") from e

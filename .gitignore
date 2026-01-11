@@ -164,3 +164,21 @@ cython_debug/
 
 # Data folder
 data/
+
+
+# Ignore large/binary model artifacts
+/models/**/*
+
+
+# Common ML model file types
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.gguf
+*.ggml
+*.bin
+*.pb
+*.h5
+*.zip

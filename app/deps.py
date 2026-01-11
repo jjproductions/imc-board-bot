@@ -4,6 +4,7 @@ This module centralizes initialization so other modules can import
 light-weight getters without triggering heavy model loading at import time.
 Provide `init_models()`, `get_embedder()` and `get_tokenizer()`.
 """
+from importlib.resources import path
 from threading import Lock
 from typing import Optional
 
@@ -26,10 +27,13 @@ def init_models() -> None:
             return
         try:
             from sentence_transformers import SentenceTransformer
-            from transformers import AutoTokenizer
 
-            _embedder = SentenceTransformer(settings.vector.embedding_model)
-            _tokenizer = AutoTokenizer.from_pretrained(settings.vector.embedding_model)
+            _embedder = SentenceTransformer(
+                str(settings.vector.embedding_model), 
+                local_files_only=True, 
+                model_kwargs={"use_safetensors": False}
+            )
+            _tokenizer = _embedder.tokenizer
             _init_error = None
         except Exception as e:
             _embedder = None
