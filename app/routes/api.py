@@ -152,7 +152,10 @@ def ingest_doc(
     ensure_collection(coll, settings.vector.embedding_dim)
 
     chunks = chunk_blocks(
-        doc.blocks, max_tokens=max_tokens, overlap_tokens=overlap_tokens
+        doc.blocks,
+        max_tokens=max_tokens,
+        overlap_tokens=overlap_tokens,
+        source_id=doc.source_id,
     )
     if not chunks:
         raise HTTPException(status_code=400, detail="No chunks produced from document.")
@@ -451,26 +454,40 @@ def ingest_file(
                         page = None
 
             label = (t.get("label") or "").lower()
-            btype = "paragraph"
-            level = None
+            # Preserve explicit level from parsed debug when available
+            level = t.get("level") if t.get("level") is not None else None
 
-            # simple heuristics for headings
-            if label in ("title", "heading", "formula", "section_header") or re.match(
-                r"^(ARTICLE|SECTION)\b", raw, flags=re.I
-            ):
-                btype = "heading"
-                if re.match(r"^ARTICLE\b", raw, flags=re.I):
-                    level = 1
-                elif re.match(r"^SECTION\b", raw, flags=re.I):
-                    level = 2
-            elif label in ("list_item",):
-                btype = "list_item"
-            elif label in ("caption",):
-                btype = "caption"
-            elif label in ("text"):
-                btype = "paragraph"
-            elif label in ("page_footer", "page_header"):
-                btype = "page_break"
+            # Explicit mapping from debug labels to stable block types
+            label_map = {
+                "section_header": "heading",
+                "title": "heading",
+                "heading": "heading",
+                "formula": "heading",
+                "list_item": "list_item",
+                "caption": "caption",
+                "text": "paragraph",
+                "page_footer": "page_break",
+                "page_header": "page_break",
+                "page_number": "page_break",
+            }
+
+            btype = label_map.get(label, None)
+
+            # Fallback heuristics when label is missing or unknown
+            if not btype:
+                if re.match(r"^(ARTICLE)\b", raw, flags=re.I):
+                    btype = "heading"
+                    if level is None:
+                        level = 1
+                elif re.match(r"^(SECTION)\b", raw, flags=re.I) or re.match(
+                    r"^Section\b", raw, flags=re.I
+                ):
+                    btype = "heading"
+                    # Treat 'Section' as top-level heading unless parsed level exists
+                    if level is None:
+                        level = 1
+                else:
+                    btype = "paragraph"
 
             parent = t.get("parent") or {}
             parent_label = parent.get("$ref") or ""

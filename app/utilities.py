@@ -88,6 +88,7 @@ def chunk_blocks(
     blocks: List[DoclingBlock],
     max_tokens: int = settings.chunking.max_tokens,
     overlap_tokens: int = settings.chunking.overlap_tokens,
+    source_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Heading-aware chunker (multilingual safe):
@@ -132,7 +133,7 @@ def chunk_blocks(
                         {"id": b.id, "enumerated": b.enumerated, "marker": b.marker}
                         for b in buffer_blocks
                     ],
-                    "source_id": None,
+                    "source_id": source_id,
                     "overlap_from_previous": 0,
                 }
             )
@@ -154,7 +155,7 @@ def chunk_blocks(
                             {"id": b.id, "enumerated": b.enumerated, "marker": b.marker}
                             for b in buffer_blocks
                         ],
-                        "source_id": None,
+                        "source_id": source_id,
                         "overlap_from_previous": 0 if idx == 0 else overlap_tokens,
                     }
                 )
@@ -200,7 +201,7 @@ def chunk_blocks(
                         {"id": b.id, "enumerated": b.enumerated, "marker": b.marker}
                         for b in buffer_blocks
                     ],
-                    "source_id": None,
+                    "source_id": source_id,
                     "overlap_from_previous": 0,
                 }
             )

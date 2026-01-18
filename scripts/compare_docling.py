@@ -2,8 +2,18 @@
 import json
 from pathlib import Path
 
-DEBUG = Path("data/docling_debug_output_20260118T041958Z.json")
-CONV = Path("data/docling_converted_output_20260118T041958Z.json")
+DATA_DIR = Path("data")
+
+# Find the most recent debug and converted files if present
+def latest_file(prefix: str):
+    files = sorted(DATA_DIR.glob(f"{prefix}_*.json"))
+    return files[-1] if files else None
+
+DEBUG = latest_file("docling_debug_output")
+CONV = latest_file("docling_converted_output")
+
+if not DEBUG or not CONV:
+    raise RuntimeError(f"Could not find debug/converted files in {DATA_DIR}: DEBUG={DEBUG}, CONV={CONV}")
 
 
 def load(path):
