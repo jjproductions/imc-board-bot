@@ -82,6 +82,21 @@ class DoclingSettings(BaseSettings):
     artifact_path: Optional[str] = "NA"
 
 
+class ChunkingSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(ENV_FILE),
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",  # enables CHUNKING__MAX_TOKENS → max_tokens
+        env_prefix="CHUNKING__",  # make the mapping clean for all fields
+        extra="ignore",
+    )
+    max_tokens: int = 800
+    overlap_tokens: int = 100
+    batch_size: int = 256
+    # Optional: normalize spaced OCR letters (e.g. "O N E" -> "ONE"). Disabled by default.
+    ocr_normalize_spaced_letters: bool = False
+
+
 class AppSettings(BaseSettings):
     """
     Top-level configuration. Loads from:
@@ -100,10 +115,10 @@ class AppSettings(BaseSettings):
     app_name: str = "Board Policy Bot API"
     environment: Literal["development", "staging", "production"] = ENV  # bound to ENV
     debug: bool = ENV == "development"
-    file_name_separator: str = Field(default="__-__", env="FILE_NAME_SEPARATOR")
     document_repository_path: Optional[str] = Field(
         default=None, env="DOCUMENT_REPOSITORY_PATH"
     )
+
     # Sections
     server: ServerSettings = ServerSettings()
     security: SecuritySettings = SecuritySettings()
@@ -111,6 +126,7 @@ class AppSettings(BaseSettings):
     vector: VectorSettings = VectorSettings()
     qdrant: QdrantSettings = QdrantSettings()
     docling: DoclingSettings = DoclingSettings()
+    chunking: ChunkingSettings = ChunkingSettings()
 
     # Paths
     data_dir: Path = PROJECT_ROOT / "data"

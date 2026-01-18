@@ -62,7 +62,8 @@ def ensure_collection(collection_name: str, vector_dim: int):
         # If size mismatch, recreate for safety
         # size = existing.vectors_count or vector_dim
         # if hasattr(existing.config, "params") and existing.config.params and existing.config.params.vectors and existing.config.params.vectors.size != vector_dim:
-        return
+        # return
+        qdrant.delete_collection(collection_name)
 
     try:
         # The qdrant-client API expects the keyword `vectors_config` for newer versions.
@@ -136,9 +137,10 @@ def create_collection(collection_name: str, vector_dim: Optional[int] = None):
 def ingest_doc(
     doc: DoclingDocument,
     collection: Optional[str] = None,
-    max_tokens: int = 300,
-    overlap_tokens: int = 50,
-    batch_size: int = 256,
+    max_tokens: int = settings.chunking.max_tokens,
+    overlap_tokens: int = settings.chunking.overlap_tokens,
+    batch_size: int = settings.chunking.batch_size,
+    file_name: Optional[str] = None,
 ):
     """
     Ingest a Docling-parsed document:
@@ -193,9 +195,9 @@ def ingest_doc(
 def ingest_file(
     file: UploadFile = File(...),
     collection: Optional[str] = Form(None),
-    max_tokens: int = Form(300),
-    overlap_tokens: int = Form(50),
-    batch_size: int = Form(256),
+    max_tokens: int = settings.chunking.max_tokens,
+    overlap_tokens: int = settings.chunking.overlap_tokens,
+    batch_size: int = settings.chunking.batch_size,
     source_id: Optional[str] = Form(None),
 ):
     """
@@ -296,10 +298,13 @@ def ingest_file(
             from docling.datamodel.pipeline_options import (
                 PdfPipelineOptions,
                 TableStructureOptions,
+                AcceleratorOptions,
             )
             from docling.backend.docling_parse_v4_backend import (
                 DoclingParseV4DocumentBackend,
             )
+
+            # from quackling.llama_index.readers import DoclingPDFReader
 
             source = tmp_path  # file path or URL
             pipeline_opts = PdfPipelineOptions(
@@ -311,6 +316,7 @@ def ingest_file(
                     # mode can be "fast" or "accurate" depending on your needs
                     # mode=TableFormerMode.ACCURATE
                 ),
+                accelerator_options=AcceleratorOptions(num_threads=4, device="auto"),
             )
             converter = DocumentConverter(
                 format_options={
@@ -449,7 +455,7 @@ def ingest_file(
             level = None
 
             # simple heuristics for headings
-            if label in ("title", "heading", "formula") or re.match(
+            if label in ("title", "heading", "formula", "section_header") or re.match(
                 r"^(ARTICLE|SECTION)\b", raw, flags=re.I
             ):
                 btype = "heading"
@@ -461,6 +467,13 @@ def ingest_file(
                 btype = "list_item"
             elif label in ("caption",):
                 btype = "caption"
+            elif label in ("text"):
+                btype = "paragraph"
+            elif label in ("page_footer", "page_header"):
+                btype = "page_break"
+
+            parent = t.get("parent") or {}
+            parent_label = parent.get("$ref") or ""
 
             blocks.append(
                 {
@@ -470,6 +483,12 @@ def ingest_file(
                     "page": page,
                     "level": level,
                     "meta": {"label": label},
+                    "parent_id": parent_label,
+                    "prov": prov,
+                    "orig": t.get("orig"),
+                    "enumerated": t.get("enumerated"),
+                    "marker": t.get("marker"),
+                    "content_layer": t.get("content_layer"),
                 }
             )
 
@@ -604,4 +623,5 @@ def ingest_file(
         max_tokens=max_tokens,
         overlap_tokens=overlap_tokens,
         batch_size=batch_size,
+        file_name=debug_filename,
     )

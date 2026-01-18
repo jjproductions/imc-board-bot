@@ -1,0 +1,167 @@
+{
+  "missing_in_conv": [],
+  "parent_mismatch": [],
+  "prov_missing": [],
+  "orig_missing": [],
+  "enumeration_mismatch": [],
+  "type_label_mismatch": [
+    {
+      "dbg_id": "#/texts/0",
+      "conv_id": "b1",
+      "dbg_label": "section_header",
+      "conv_type": "paragraph",
+      "expected": "heading"
+    },
+    {
+      "dbg_id": "#/texts/2",
+      "conv_id": "b3",
+      "dbg_label": "list_item",
+      "conv_type": "heading",
+      "expected": "list_item"
+    },
+    {
+      "dbg_id": "#/texts/3",
+      "conv_id": "b4",
+      "dbg_label": "list_item",
+      "conv_type": "heading",
+      "expected": "list_item"
+    },
+    {
+      "dbg_id": "#/texts/4",
+      "conv_id": "b5",
+      "dbg_label": "list_item",
+      "conv_type": "heading",
+      "expected": "list_item"
+    },
+    {
+      "dbg_id": "#/texts/6",
+      "conv_id": "b7",
+      "dbg_label": "text",
+      "conv_type": "heading",
+      "expected": "paragraph"
+    },
+    {
+      "dbg_id": "#/texts/7",
+      "conv_id": "b8",
+      "dbg_label": "list_item",
+      "conv_type": "heading",
+      "expected": "list_item"
+    },
+    {
+      "dbg_id": "#/texts/8",
+      "conv_id": "b9",
+      "dbg_label": "page_footer",
+      "conv_type": "paragraph",
+      "expected": "page_break"
+    },
+    {
+      "dbg_id": "#/texts/28",
+      "conv_id": "b29",
+      "dbg_label": "page_footer",
+      "conv_type": "paragraph",
+      "expected": "page_break"
+    },
+    {
+      "dbg_id": "#/texts/43",
+      "conv_id": "b44",
+      "dbg_label": "page_footer",
+      "conv_type": "paragraph",
+      "expected": "page_break"
+    },
+    {
+      "dbg_id": "#/texts/52",
+      "conv_id": "b53",
+      "dbg_label": "page_footer",
+      "conv_type": "paragraph",
+      "expected": "page_break"
+    },
+    {
+      "dbg_id": "#/texts/74",
+      "conv_id": "b75",
+      "dbg_label": "page_footer",
+      "conv_type": "paragraph",
+      "expected": "page_break"
+    }
+  ],
+  "level_mismatch": [
+    {
+      "dbg_id": "#/texts/0",
+      "conv_id": "b1",
+      "dbg_level": 1,
+      "conv_level": null
+    },
+    {
+      "dbg_id": "#/texts/21",
+      "conv_id": "b22",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/23",
+      "conv_id": "b24",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/25",
+      "conv_id": "b26",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/27",
+      "conv_id": "b28",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/30",
+      "conv_id": "b31",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/32",
+      "conv_id": "b33",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/35",
+      "conv_id": "b36",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/39",
+      "conv_id": "b40",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/41",
+      "conv_id": "b42",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/46",
+      "conv_id": "b47",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/48",
+      "conv_id": "b49",
+      "dbg_level": 1,
+      "conv_level": 2
+    },
+    {
+      "dbg_id": "#/texts/50",
+      "conv_id": "b51",
+      "dbg_level": 1,
+      "conv_level": 2
+    }
+  ],
+  "table_meta_missing": []
+}
