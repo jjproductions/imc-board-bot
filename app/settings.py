@@ -3,7 +3,7 @@
 
 import os
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional, Literal, cast
 
 from pydantic import BaseModel, AnyUrl, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,9 +13,11 @@ from pydantic import computed_field
 # Adjust parents[...] if your nesting differs.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+AppEnvironment = Literal["development", "staging", "production"]
+
 # Determine which environment to load (default: development)
 # OS env has highest precedence. If not set, we use "development".
-ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
+ENV = cast(AppEnvironment, os.getenv("ENVIRONMENT", "development").strip().lower())
 
 # Select the appropriate .env file
 # e.g., .env.development, .env.staging, .env.production
@@ -58,7 +60,7 @@ class VectorSettings(BaseSettings):
     )
 
     # Your default preferences
-    embedding_model: str = Field(default="BAAI/bge-m3", env="EMBEDDING_MODEL")
+    embedding_model: str = Field(default="BAAI/bge-m3", env="EMBEDDING_MODEL") # either name or path to model..can be relative to models dir
     embedding_dim: int = Field(default=1024, ge=1)
     normalized: bool = True
     similarity_metric: Literal["cosine", "dot"] = "cosine"
@@ -79,7 +81,7 @@ class DoclingSettings(BaseSettings):
         extra="ignore",
     )
     url: Optional[AnyUrl] = None
-    artifact_path: Optional[str] = "NA"
+    artifact_path: Optional[str] = None
 
 
 class ChunkingSettings(BaseSettings):
@@ -94,7 +96,7 @@ class ChunkingSettings(BaseSettings):
     overlap_tokens: int = 100
     batch_size: int = 256
     # Optional: normalize spaced OCR letters (e.g. "O N E" -> "ONE"). Disabled by default.
-    ocr_normalize_spaced_letters: bool = False
+    ocr_normalize_spaced_letters: bool = True
 
 
 class AppSettings(BaseSettings):
@@ -108,12 +110,13 @@ class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
+        env_nested_delimiter="__",
         extra="ignore",
     )
 
     # Core
-    app_name: str = "Board Policy Bot API"
-    environment: Literal["development", "staging", "production"] = ENV  # bound to ENV
+    app_name: str = Field(default="Board Policy Bot API", env="APP_NAME")
+    environment: AppEnvironment = ENV  # bound to ENV
     debug: bool = ENV == "development"
     document_repository_path: Optional[str] = Field(
         default=None, env="DOCUMENT_REPOSITORY_PATH"
@@ -130,7 +133,7 @@ class AppSettings(BaseSettings):
 
     # Paths
     data_dir: Path = PROJECT_ROOT / "data"
-    models_dir: Path = PROJECT_ROOT / "models"
+    models_dir: Path = Field(default=PROJECT_ROOT / "models", validation_alias="MODELS_DIR")
     logs_dir: Path = PROJECT_ROOT / "logs"
 
     # Derived / helpers
@@ -153,11 +156,11 @@ class AppSettings(BaseSettings):
 # Instantiate a singleton and fail fast on invalid configuration
 try:
     settings = AppSettings()
-    print(
+    print(  
         f"models dir: {settings.models_dir}, \
           embedding_model: {settings.vector.embedding_model}, \
-            docling_artifact_path: {settings.docling.artifact_path}"
-    )  # --- IGNORE ---
+            docling_artifact_path: {settings.docling.artifact_path}"  # --- IGNORE ---
+    )
     print("ENV_FILE:", ENV_FILE)  # --- IGNORE ---
 except ValidationError as e:
     # Raise a clear error at startup if configuration is invalid

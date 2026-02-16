@@ -1,0 +1,39 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./data/qdrant_storage:/qdrant/storage:z
+    restart: unless-stopped
+
+  board-ingest-api:
+    build: .
+    container_name: board-ingest-api
+    ports:
+      - "8005:8000"
+    volumes:
+      # Mount models from host to container to avoid re-downloading
+      - ${MODELS_DIR:-/Users/jj/.cache/huggingface}:/app/models
+      # Optional: Mount logs
+      - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=production
+      - QDRANT__URL=${QDRANT_URL:-http://qdrant:6333}
+      # Increase timeout if models are loading
+      - CHUNKING__MAX_TOKENS=800
+
+    restart: unless-stopped
+    networks:
+      rag-shared:
+        aliases:
+          - board-ingest-api
+
+volumes:
+  qdrant_data:
+
+
+networks:
+  rag-shared:
+    external: true

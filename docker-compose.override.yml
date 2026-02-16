@@ -1,0 +1,4 @@
+services:
+  qdrant:
+    profiles:
+      - bundled-qdrant

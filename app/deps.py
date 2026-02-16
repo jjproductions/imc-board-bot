@@ -30,7 +30,7 @@ def init_models() -> None:
 
             _embedder = SentenceTransformer(
                 str(settings.vector.embedding_model), 
-                local_files_only=True, 
+                cache_folder=str(settings.models_dir),
                 model_kwargs={"use_safetensors": False}
             )
             _tokenizer = _embedder.tokenizer

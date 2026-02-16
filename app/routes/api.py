@@ -4,6 +4,7 @@ from app import crud, schemas
 from ..settings import settings
 from ..schemas import IngestResponse, DoclingDocument
 from ..utilities import embed_texts, chunk_blocks, batched
+from pathlib import Path
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -39,7 +40,7 @@ if QdrantClient is None:
     raise RuntimeError(
         "Missing dependency 'qdrant-client'. Install with: pip install qdrant-client and ensure it's available in your environment."
     ) from _qdrant_import_err
-qdrant = QdrantClient(url=settings.qdrant.url, api_key=settings.qdrant.api_key)
+qdrant = QdrantClient(url=str(settings.qdrant.url), api_key=settings.qdrant.api_key)
 
 # Note: models/tokenizer are initialized lazily via `app.deps.get_*`.
 # Avoid initializing heavy models at import time to prevent circular imports
@@ -310,8 +311,25 @@ def ingest_file(
             # from quackling.llama_index.readers import DoclingPDFReader
 
             source = tmp_path  # file path or URL
+
+            # Determine artifacts path; if it doesn't exist or is empty, fallback to default (None)
+            docling_artifacts_path = None
+            raw_artifacts_path = settings.models_dir / (settings.docling.artifact_path or "")
+            if settings.docling.artifact_path:
+                if not Path(settings.docling.artifact_path or "").is_absolute():
+                    pass  # already joined with models_dir above
+                else:
+                    raw_artifacts_path = Path(settings.docling.artifact_path)
+
+                if raw_artifacts_path.exists() and raw_artifacts_path.is_dir() and any(raw_artifacts_path.iterdir()):
+                    docling_artifacts_path = str(raw_artifacts_path)
+                else:
+                    logging.getLogger("app").warning(
+                        f"Docling artifacts path '{raw_artifacts_path}' not found or empty. Using default cache."
+                    )
+                    
             pipeline_opts = PdfPipelineOptions(
-                artifacts_path=str(settings.docling.artifact_path or ""),
+                artifacts_path=docling_artifacts_path,
                 do_ocr=False,
                 do_table_structure=True,  # use TableFormer to get structured tables
                 table_structure_options=TableStructureOptions(
@@ -348,7 +366,7 @@ def ingest_file(
                 # Use FastAPI's jsonable_encoder to handle non-JSON-native types
                 try:
                     from fastapi.encoders import jsonable_encoder
-
+                    
                     serializable = jsonable_encoder(parsed)
                 except Exception:
                     # Fallback: assume proc_dict is already JSON-serializable
@@ -380,11 +398,14 @@ def ingest_file(
 
         except FileNotFoundError as e:
             os.unlink(tmp_path)
+            # Differentiate between 'docling' CLI/module missing and other file errors
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
-                status_code=501,
+                status_code=500,
                 detail=(
-                    "`docling` CLI not found on the server. Either install `docling` "
-                    "or set DOCLING_URL to point at a docling HTTP service."
+                    f"File not found error (possible missing model file?): {e}. "
+                    "Ensure 'docling' is installed and models are present."
                 ),
             )
         except ValueError as e:
