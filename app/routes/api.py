@@ -59,6 +59,9 @@ def ensure_collection(collection_name: str, vector_dim: int):
         raise RuntimeError(f"Failed to list qdrant collections: {e}")
 
     if any(col.name == collection_name for col in existing):
+        if not settings.qdrant.remove_existing_collections:
+            return
+
         # existing = qdrant.get_collection(collection_name)
         # If size mismatch, recreate for safety
         # size = existing.vectors_count or vector_dim

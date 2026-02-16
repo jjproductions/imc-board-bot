@@ -70,6 +70,9 @@ class QdrantSettings(BaseModel):
     url: AnyUrl = "http://localhost:6333"
     api_key: Optional[str] = None  # None is fine for local
     default_collection: str = "board-policies"
+    remove_existing_collections: bool = Field(
+        default=False, validation_alias="REMOVE_EXISTING_COLLECTIONS"
+    )
 
 
 class DoclingSettings(BaseSettings):

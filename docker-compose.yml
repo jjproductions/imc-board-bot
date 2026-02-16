@@ -17,10 +17,13 @@ services:
       # Mount models from host to container to avoid re-downloading
       - ${MODELS_DIR:-/Users/jj/.cache/huggingface}:/app/models
       # Optional: Mount logs
-      - ./logs:/app/logs
+      - /Users/jj/Nas/logs/imc-policy-bot:/app/logs
+      # Mount data for debug outputs
+      - /Users/jj/Nas/data/imc-policy-bot:/app/data
     environment:
       - ENVIRONMENT=production
       - QDRANT__URL=${QDRANT_URL:-http://qdrant:6333}
+      - QDRANT__DEFAULT_COLLECTION=${QDRANT__DEFAULT_COLLECTION:-board-policies}
       # Increase timeout if models are loading
       - CHUNKING__MAX_TOKENS=800
 
