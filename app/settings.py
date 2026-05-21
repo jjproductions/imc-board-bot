@@ -85,7 +85,7 @@ class DoclingSettings(BaseSettings):
         extra="ignore",
     )
     url: Optional[AnyUrl] = None
-    artifact_path: Optional[str] = None
+    artifact_path: Optional[str] = "docling"
 
 
 class ChunkingSettings(BaseSettings):

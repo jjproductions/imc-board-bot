@@ -30,8 +30,13 @@ def init_models() -> None:
             from sentence_transformers import SentenceTransformer
             from fastembed import SparseTextEmbedding
 
+            model_path = str(settings.vector.embedding_model)
+            local_path = settings.models_dir / model_path
+            if local_path.exists() and local_path.is_dir():
+                model_path = str(local_path)
+
             _embedder = SentenceTransformer(
-                str(settings.vector.embedding_model), 
+                model_path, 
                 cache_folder=str(settings.models_dir),
                 model_kwargs={"use_safetensors": False}
             )

@@ -189,6 +189,34 @@ def download_docling_models(target_dir: str, retries: int) -> bool:
     return False
 
 
+def download_fastembed_model(target_dir: str, retries: int) -> bool:
+    """
+    Download the fastembed sparse embedding model (prithivida/Splade_PP_en_v1)
+    to the target models directory.
+    """
+    model_name = "prithivida/Splade_PP_en_v1"
+    log(f"Downloading Fastembed sparse model: {model_name} -> {target_dir}")
+    try:
+        from fastembed import SparseTextEmbedding
+    except ImportError:
+        log("fastembed not found; installing...")
+        if not pip_install(["fastembed>=0.3.0"]):
+            log("Failed to install fastembed.")
+            return False
+        from fastembed import SparseTextEmbedding # re-import after install
+
+    for attempt in range(1, retries + 1):
+        try:
+            # Initializing triggers automatic model download to cache_dir
+            SparseTextEmbedding(model_name=model_name, cache_dir=target_dir)
+            log("Fastembed sparse model download succeeded.")
+            return True
+        except Exception as e:
+            log(f"Fastembed sparse model download error: {e}")
+            time.sleep(2 * attempt)
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Download HF and Docling models for deployment."
@@ -229,15 +257,16 @@ def main():
         target_dir=hf_dir, retries=args.retries, revision=args.hf_revision
     )
     ok_doc = download_docling_models(target_dir=docling_dir, retries=args.retries)
+    ok_fe = download_fastembed_model(target_dir=args.models_dir, retries=args.retries)
 
-    if ok_hf and ok_doc:
+    if ok_hf and ok_doc and ok_fe:
         log("✅ All downloads completed successfully.")
         sys.exit(0)
-    elif ok_hf or ok_doc:
+    elif ok_hf or ok_doc or ok_fe:
         log("⚠️ Partial success. One of the downloads failed.")
         sys.exit(1)
     else:
-        log("❌ Both downloads failed.")
+        log("❌ All downloads failed.")
         sys.exit(2)
 
 

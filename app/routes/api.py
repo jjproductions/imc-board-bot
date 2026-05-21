@@ -325,8 +325,8 @@ def ingest_file(
                 TableStructureOptions,
                 AcceleratorOptions,
             )
-            from docling.backend.docling_parse_v4_backend import (
-                DoclingParseV4DocumentBackend,
+            from docling.backend.docling_parse_backend import (
+                DoclingParseDocumentBackend,
             )
 
             # from quackling.llama_index.readers import DoclingPDFReader
@@ -364,7 +364,7 @@ def ingest_file(
                 format_options={
                     InputFormat.PDF: PdfFormatOption(
                         pipeline_options=pipeline_opts,
-                        backend=DoclingParseV4DocumentBackend,
+                        backend=DoclingParseDocumentBackend,
                     )
                 },
             )

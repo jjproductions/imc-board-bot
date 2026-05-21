@@ -145,7 +145,7 @@ deploy_container_app "board-ingest-api" \
     --registry-server "$ACR_SERVER" \
     --target-port 8000 \
     --ingress external \
-    --cpu 1.0 --memory 2.0Gi \
+    --cpu 2.0 --memory 4.0Gi \
     --min-replicas 1 --max-replicas 3 \
     --secrets "openai-key=$AZURE_OPENAI_API_KEY" \
     --env-vars \

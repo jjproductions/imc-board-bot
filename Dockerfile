@@ -27,6 +27,9 @@ RUN pip install --no-cache-dir -r requirements.linux.txt
 COPY app ./app
 COPY scripts ./scripts
 
+# Pre-download and bake ML models into the image
+RUN python scripts/download_models.py --models-dir ./models
+
 # Expose port
 EXPOSE 8000
 
