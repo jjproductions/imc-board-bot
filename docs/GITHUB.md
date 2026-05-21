@@ -95,6 +95,7 @@ To allow the workflow to run, you must add the required credentials as Repositor
 | `AZURE_CREDENTIALS` | The entire JSON block output from `az ad sp create-for-rbac` | `{ "clientId": "...", ... }` |
 | `AZURE_OPENAI_API_KEY` | Your Azure OpenAI instance API Key | `4f3c...` |
 | `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL | `https://your-resource.openai.azure.com/` |
+| `QDRANT_DEFAULT_COLLECTION` | (Optional) Custom default Qdrant collection name | `board-policies-hybrid` |
 
 > [!IMPORTANT]
 > Do not add spaces or newlines around the secret values. Paste them exactly as generated.
@@ -116,16 +117,28 @@ If your Azure environment uses custom resource names that differ from the defaul
 | `ACR_NAME` | The name of your Azure Container Registry | `imcregistry` |
 | `ENV_NAME` | The name of your Azure Container Apps Environment | `imc-rag-env` |
 
-To make these active, make sure they are passed in the `.github/workflows/azure-deploy.yml` workflow env block:
+To make these active, make sure they are passed in your `.github/workflows/azure-deploy.yml` workflow. 
+
+Your workflow contains the global `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'` variable at the top to opt all Javascript actions into Node.js 24:
+
+```yaml
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+```
+
+And your deploy step passes these secrets to the deployment script:
+
 ```yaml
       - name: Run Deployment Script
         env:
-          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP || 'imc-rag-rg' }}
-          ACR_NAME: ${{ vars.ACR_NAME || 'imcregistry' }}
-          ENV_NAME: ${{ vars.ENV_NAME || 'imc-rag-env' }}
-          LOCATION: ${{ vars.LOCATION || 'eastus' }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+          LOCATION: ${{ secrets.LOCATION }}
+          ACR_NAME: ${{ secrets.ACR_NAME }}
+          ENV_NAME: ${{ secrets.ENV_NAME }}
+          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+          QDRANT_DEFAULT_COLLECTION: ${{ secrets.QDRANT_DEFAULT_COLLECTION }}
 ```
 
 ---

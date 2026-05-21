@@ -16,6 +16,7 @@ LOCATION="${LOCATION:-eastus}"
 ACR_NAME="${ACR_NAME:-imcregistry}"
 ENV_NAME="${ENV_NAME:-imc-rag-env}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
+QDRANT_DEFAULT_COLLECTION="${QDRANT_DEFAULT_COLLECTION:-board-policies-hybrid}"
 
 # IMPORTANT: Ensure AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT are set in your environment
 if [[ -z "$AZURE_OPENAI_API_KEY" ]] || [[ -z "$AZURE_OPENAI_ENDPOINT" ]]; then
@@ -69,22 +70,46 @@ deploy_container_app() {
     echo "Checking if container app '$APP_NAME' exists..."
     if az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
         echo "🔄 Updating existing app: $APP_NAME..."
-        # Extract the --image argument to pass to update
+        # Extract the --image and --env-vars arguments to pass to update
         local IMAGE=""
+        local ENV_VARS=()
+        local capture_envs=false
+        
         for i in "${!CREATE_ARGS[@]}"; do
             if [[ "${CREATE_ARGS[$i]}" == "--image" ]]; then
                 IMAGE="${CREATE_ARGS[$((i+1))]}"
-                break
             fi
         done
         
-        # If it's a private ACR image, we update the image. 
-        # (For more complex updates like env vars, az containerapp update has specific flags)
-        az containerapp update \
-            --name "$APP_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --image "$IMAGE" \
-            -o none
+        for arg in "${CREATE_ARGS[@]}"; do
+            if [[ "$arg" == "--env-vars" ]]; then
+                capture_envs=true
+                continue
+            fi
+            if [[ $capture_envs == true ]]; then
+                if [[ "$arg" == --* ]]; then
+                    capture_envs=false
+                else
+                    ENV_VARS+=("$arg")
+                fi
+            fi
+        done
+        
+        # If env vars are provided, update both the image and the environment variables
+        if [[ ${#ENV_VARS[@]} -gt 0 ]]; then
+            az containerapp update \
+                --name "$APP_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --image "$IMAGE" \
+                --set-env-vars "${ENV_VARS[@]}" \
+                -o none
+        else
+            az containerapp update \
+                --name "$APP_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --image "$IMAGE" \
+                -o none
+        fi
     else
         echo "✨ Creating new app: $APP_NAME..."
         az containerapp create \
@@ -126,6 +151,7 @@ deploy_container_app "board-ingest-api" \
     --env-vars \
         "QDRANT_HOST=$QDRANT_FQDN" \
         "QDRANT_PORT=443" \
+        "QDRANT__DEFAULT_COLLECTION=$QDRANT_DEFAULT_COLLECTION" \
         "AZURE_OPENAI_API_KEY=secretref:openai-key" \
         "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT"
 echo "✅ FastAPI Ingest API deployed."
