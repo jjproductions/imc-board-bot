@@ -21,8 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 # Remove macOS-specific dependencies (ocrmac, pyobjc) which fail on Linux
 RUN grep -vE "ocrmac|pyobjc" requirements.txt > requirements.linux.txt
-# Install PyTorch CPU-only first to save ~1.5GB of space (Azure Container Apps runs on CPU)
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# Install PyTorch and Torchvision CPU-only first to save ~1.5GB of space and prevent version conflicts (Azure Container Apps runs on CPU)
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.linux.txt
 
 # Copy application code
