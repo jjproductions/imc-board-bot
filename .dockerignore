@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+.pytest_cache
+.vscode
+__pycache__
+models/
+logs/
+data/
+tmp/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.development

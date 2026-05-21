@@ -34,6 +34,6 @@ jobs:
           LOCATION: ${{ secrets.LOCATION }}
           ACR_NAME: ${{ secrets.ACR_NAME }}
           ENV_NAME: ${{ secrets.ENV_NAME }}
-          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+          IMAGE_TAG: ${{ github.sha }}
           QDRANT_DEFAULT_COLLECTION: ${{ secrets.QDRANT_DEFAULT_COLLECTION }}
         run: ./scripts/deploy_to_azure.sh
