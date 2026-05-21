@@ -22,6 +22,8 @@ try:
     from qdrant_client.models import (
         Distance,
         VectorParams,
+        SparseVectorParams,
+        SparseVector,
         Filter,
         FieldCondition,
         MatchValue,
@@ -30,6 +32,8 @@ except Exception as e:
     QdrantClient = None
     Distance = None
     VectorParams = None
+    SparseVectorParams = None
+    SparseVector = None
     QdrantPointStruct = None
     Filter = None
     FieldCondition = None
@@ -74,7 +78,12 @@ def ensure_collection(collection_name: str, vector_dim: int):
         # Use `vectors_config` to be compatible with qdrant-client >=1.0.
         qdrant.create_collection(
             collection_name=collection_name,
-            vectors_config=VectorParams(size=vector_dim, distance=Distance.COSINE),
+            vectors_config={
+                "dense": VectorParams(size=vector_dim, distance=Distance.COSINE)
+            },
+            sparse_vectors_config={
+                "sparse": SparseVectorParams()
+            }
         )
     except Exception as e:
         raise RuntimeError(
@@ -152,7 +161,7 @@ def ingest_doc(
     - embeds via BAAI/bge-m3 (1024-dim, normalized)
     - upserts into Qdrant with rich payloads
     """
-    coll = collection or settings.qdrant.default_collection
+    coll = collection if collection and collection != "string" else settings.qdrant.default_collection
     ensure_collection(coll, settings.vector.embedding_dim)
 
     chunks = chunk_blocks(
@@ -165,10 +174,10 @@ def ingest_doc(
         raise HTTPException(status_code=400, detail="No chunks produced from document.")
 
     texts = [c["text"] for c in chunks]
-    vectors = embed_texts(texts)
+    dense_vectors, sparse_vectors = embed_texts(texts)
 
     points = []
-    for idx, (c, vec) in enumerate(zip(chunks, vectors)):
+    for idx, (c, dense_vec, sparse_vec) in enumerate(zip(chunks, dense_vectors, sparse_vectors)):
         chunk_id = str(uuid.uuid4())
         payload = {
             "source_id": doc.source_id,
@@ -183,7 +192,16 @@ def ingest_doc(
             "overlap_from_previous": c["overlap_from_previous"],
             "embedding_model": settings.vector.embedding_model,
         }
-        points.append(QdrantPointStruct(id=chunk_id, vector=vec, payload=payload))
+        
+        vector = {
+            "dense": dense_vec,
+            "sparse": SparseVector(
+                indices=sparse_vec.indices.tolist(),
+                values=sparse_vec.values.tolist()
+            )
+        }
+        
+        points.append(QdrantPointStruct(id=chunk_id, vector=vector, payload=payload))
 
     upserted = 0
     for batch in batched(points, batch_size):

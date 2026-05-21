@@ -1,0 +1,35 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - main  # Triggers the deployment whenever you push to the main branch
+  workflow_dispatch:  # Allows you to run the workflow manually from the GitHub UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Make deployment script executable
+        run: chmod +x scripts/deploy_to_azure.sh
+
+      - name: Run Deployment Script
+        env:
+          # Pass the GitHub secrets as environment variables to the bash script
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+          LOCATION: ${{ secrets.LOCATION }}
+          ACR_NAME: ${{ secrets.ACR_NAME }}
+          ENV_NAME: ${{ secrets.ENV_NAME }}
+          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+        run: ./scripts/deploy_to_azure.sh

@@ -12,6 +12,7 @@ from .settings import settings
 
 _lock = Lock()
 _embedder: Optional[object] = None
+_sparse_embedder: Optional[object] = None
 _tokenizer: Optional[object] = None
 _init_error: Optional[Exception] = None
 
@@ -21,12 +22,13 @@ def init_models() -> None:
 
     Raises the underlying exception if initialization fails.
     """
-    global _embedder, _tokenizer, _init_error
+    global _embedder, _sparse_embedder, _tokenizer, _init_error
     with _lock:
-        if _embedder is not None and _tokenizer is not None:
+        if _embedder is not None and _tokenizer is not None and _sparse_embedder is not None:
             return
         try:
             from sentence_transformers import SentenceTransformer
+            from fastembed import SparseTextEmbedding
 
             _embedder = SentenceTransformer(
                 str(settings.vector.embedding_model), 
@@ -34,9 +36,14 @@ def init_models() -> None:
                 model_kwargs={"use_safetensors": False}
             )
             _tokenizer = _embedder.tokenizer
+            _sparse_embedder = SparseTextEmbedding(
+                model_name=str(settings.vector.sparse_embedding_model),
+                cache_dir=str(settings.models_dir)
+            )
             _init_error = None
         except Exception as e:
             _embedder = None
+            _sparse_embedder = None
             _tokenizer = None
             _init_error = e
             raise
@@ -59,3 +66,12 @@ def get_tokenizer() -> object:
     if _tokenizer is None:
         raise RuntimeError(f"Tokenizer not initialized: {_init_error}")
     return _tokenizer
+
+
+def get_sparse_embedder() -> object:
+    """Return the sparse embedder, initializing it if necessary."""
+    if _sparse_embedder is None:
+        init_models()
+    if _sparse_embedder is None:
+        raise RuntimeError(f"Sparse embedder not initialized: {_init_error}")
+    return _sparse_embedder

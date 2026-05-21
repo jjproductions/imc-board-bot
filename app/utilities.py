@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Optional, Tuple
 import re
-from .deps import get_tokenizer, get_embedder
+from .deps import get_tokenizer, get_embedder, get_sparse_embedder
 from .schemas import DoclingBlock
 import logging
 from .settings import settings
@@ -259,11 +259,17 @@ def chunk_blocks(
     return chunks
 
 
-def embed_texts(texts: List[str]) -> List[List[float]]:
+def embed_texts(texts: List[str]) -> Tuple[List[List[float]], List[Any]]:
     # bge-m3: normalize for cosine similarity
     embedder = get_embedder()
-    vectors = embedder.encode(texts, normalize_embeddings=True)
-    return [v.tolist() for v in vectors]
+    sparse_embedder = get_sparse_embedder()
+    
+    dense_embs = embedder.encode(texts, normalize_embeddings=True)
+    dense_list = [v.tolist() for v in dense_embs]
+    
+    sparse_list = list(sparse_embedder.embed(texts, batch_size=32))
+    
+    return dense_list, sparse_list
 
 
 def batched(iterable, n: int):
