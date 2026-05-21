@@ -25,12 +25,15 @@ RUN grep -vE "ocrmac|pyobjc" requirements.txt > requirements.linux.txt
 RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.linux.txt
 
-# Copy application code
+# Copy ONLY the model download script first to leverage Docker layer caching
+COPY scripts/download_models.py ./scripts/download_models.py
+
+# Pre-download and bake ML models (cached unless download_models.py changes)
+RUN python scripts/download_models.py --models-dir ./models
+
+# Copy the rest of the application code (frequently changing, but fast!)
 COPY app ./app
 COPY scripts ./scripts
-
-# Pre-download and bake ML models into the image
-RUN python scripts/download_models.py --models-dir ./models
 
 # Expose port
 EXPOSE 8000

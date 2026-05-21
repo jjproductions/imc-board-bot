@@ -28,7 +28,7 @@ fi
 # ==========================================
 # 1. Base Infrastructure (Idempotent)
 # ==========================================
-echo -e "\n[1/5] Setting up base Azure resources..."
+echo -e "\n[1/3] Setting up base Azure resources..."
 
 # Create Resource Group
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION" -o none
@@ -48,7 +48,7 @@ ACR_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer --output tsv)
 # ==========================================
 # 2. Build & Push API Image
 # ==========================================
-echo -e "\n[2/5] Building and pushing Ingest API image using Azure Container Registry..."
+echo -e "\n[2/3] Building and pushing Ingest API image using Azure Container Registry..."
 
 IMAGE_URI="$ACR_SERVER/board-ingest-api:$IMAGE_TAG"
 
@@ -124,24 +124,22 @@ deploy_container_app() {
 }
 
 # ==========================================
-# 3. Deploy Qdrant
+# 3. Retrieve Qdrant Host FQDN
 # ==========================================
-echo -e "\n[3/5] Deploying Qdrant..."
-deploy_container_app "qdrant" \
-    --image "qdrant/qdrant:latest" \
-    --target-port 6333 \
-    --ingress internal \
-    --cpu 1.0 --memory 2.0Gi \
-    --min-replicas 1 --max-replicas 1
-echo "✅ Qdrant deployed."
+echo "🔍 Retrieving pre-existing Qdrant instance internal endpoint..."
+QDRANT_FQDN=$(az containerapp show --name qdrant --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
 
-# Get Qdrant Internal FQDN
-QDRANT_FQDN=$(az containerapp show --name qdrant --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)
+if [[ -z "$QDRANT_FQDN" ]]; then
+    echo "❌ ERROR: Qdrant Container App 'qdrant' was not found in Resource Group '$RESOURCE_GROUP'."
+    echo "Please ensure the shared Qdrant instance is deployed and running before deploying the application."
+    exit 1
+fi
+echo "✅ Qdrant Internal FQDN: $QDRANT_FQDN"
 
 # ==========================================
 # 4. Deploy FastAPI Ingest API
 # ==========================================
-echo -e "\n[4/5] Deploying FastAPI Ingest API..."
+echo -e "\n[3/3] Deploying FastAPI Ingest API..."
 deploy_container_app "board-ingest-api" \
     --image "$IMAGE_URI" \
     --registry-server "$ACR_SERVER" \
@@ -161,24 +159,8 @@ echo "✅ FastAPI Ingest API deployed."
 # Get API External FQDN
 API_FQDN=$(az containerapp show --name board-ingest-api --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)
 
-# ==========================================
-# 5. Deploy OpenWebUI
-# ==========================================
-echo -e "\n[5/5] Deploying OpenWebUI..."
-deploy_container_app "openwebui" \
-    --image "ghcr.io/open-webui/open-webui:main" \
-    --target-port 8080 \
-    --ingress external \
-    --cpu 0.5 --memory 1.0Gi \
-    --min-replicas 1 --max-replicas 1 \
-    --env-vars "OPENAI_API_BASE_URL=https://$API_FQDN/api"
-echo "✅ OpenWebUI deployed."
-
-WEBUI_FQDN=$(az containerapp show --name openwebui --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)
-
 echo -e "\n====================================================="
 echo "🎉 DEPLOYMENT COMPLETE!"
 echo "====================================================="
-echo "🔗 OpenWebUI URL: https://$WEBUI_FQDN"
 echo "🔗 Ingest API URL: https://$API_FQDN/docs"
 echo "====================================================="
