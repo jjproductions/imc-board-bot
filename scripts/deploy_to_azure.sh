@@ -142,7 +142,7 @@ deploy_container_app() {
 # 3. Retrieve Qdrant Host FQDN
 # ==========================================
 echo "🔍 Retrieving pre-existing Qdrant instance internal endpoint..."
-QDRANT_FQDN=$(az containerapp show --name qdrant --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
+QDRANT_FQDN=$(az containerapp show --name qdrant-app --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
 
 if [[ -z "$QDRANT_FQDN" ]]; then
     echo "❌ ERROR: Qdrant Container App 'qdrant' was not found in Resource Group '$RESOURCE_GROUP'."
