@@ -30,17 +30,32 @@ fi
 # ==========================================
 echo -e "\n[1/3] Setting up base Azure resources..."
 
-# Create Resource Group
-az group create --name "$RESOURCE_GROUP" --location "$LOCATION" -o none
-echo "✅ Resource Group: $RESOURCE_GROUP"
+# Create Resource Group if not exists
+if ! az group show --name "$RESOURCE_GROUP" &> /dev/null; then
+    echo "✨ Creating Resource Group: $RESOURCE_GROUP..."
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION" -o none
+    echo "✅ Resource Group created: $RESOURCE_GROUP"
+else
+    echo "✅ Resource Group: $RESOURCE_GROUP (already exists)"
+fi
 
-# Create Azure Container Registry (ACR)
-az acr create --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" --sku Basic --admin-enabled true -o none
-echo "✅ Container Registry: $ACR_NAME"
+# Create Azure Container Registry (ACR) if not exists
+if ! az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
+    echo "✨ Creating Container Registry: $ACR_NAME..."
+    az acr create --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" --sku Basic --admin-enabled true -o none
+    echo "✅ Container Registry created: $ACR_NAME"
+else
+    echo "✅ Container Registry: $ACR_NAME (already exists)"
+fi
 
-# Create Container Apps Environment
-az containerapp env create --name "$ENV_NAME" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" -o none
-echo "✅ Container Apps Environment: $ENV_NAME"
+# Create Container Apps Environment if not exists
+if ! az containerapp env show --name "$ENV_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
+    echo "✨ Creating Container Apps Environment: $ENV_NAME..."
+    az containerapp env create --name "$ENV_NAME" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" -o none
+    echo "✅ Container Apps Environment created: $ENV_NAME"
+else
+    echo "✅ Container Apps Environment: $ENV_NAME (already exists)"
+fi
 
 # Get ACR Login Server
 ACR_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer --output tsv)
