@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Optional, Literal, cast
 
-from pydantic import BaseModel, AnyUrl, Field, ValidationError
+from pydantic import BaseModel, AnyUrl, Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import computed_field
 
@@ -126,6 +126,10 @@ class AppSettings(BaseSettings):
         default=None, env="DOCUMENT_REPOSITORY_PATH"
     )
 
+    # Flat Qdrant env overrides (e.g. from deploy_to_azure.sh)
+    qdrant_host: Optional[str] = Field(default=None, env="QDRANT_HOST", validation_alias="QDRANT_HOST")
+    qdrant_port: Optional[int] = Field(default=None, env="QDRANT_PORT", validation_alias="QDRANT_PORT")
+
     # Sections
     server: ServerSettings = ServerSettings()
     security: SecuritySettings = SecuritySettings()
@@ -134,6 +138,14 @@ class AppSettings(BaseSettings):
     qdrant: QdrantSettings = QdrantSettings()
     docling: DoclingSettings = DoclingSettings()
     chunking: ChunkingSettings = ChunkingSettings()
+
+    @model_validator(mode="after")
+    def resolve_qdrant_url(self) -> "AppSettings":
+        if self.qdrant_host:
+            port = self.qdrant_port or 6333
+            scheme = "https" if port == 443 else "http"
+            self.qdrant.url = AnyUrl(f"{scheme}://{self.qdrant_host}:{port}")
+        return self
 
     # Paths
     data_dir: Path = PROJECT_ROOT / "data"
