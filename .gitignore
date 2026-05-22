@@ -182,3 +182,5 @@ data/
 *.pb
 *.h5
 *.zip
+
+*.DS_Store

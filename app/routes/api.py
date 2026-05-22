@@ -396,6 +396,8 @@ def ingest_file(
                 # JSON string (useful for returning/storing raw JSON)
                 proc_json = json.dumps(serializable, ensure_ascii=False)
 
+                # Ensure data_dir exists before saving
+                settings.data_dir.mkdir(parents=True, exist_ok=True)
                 # Save debug JSON with a UTC timestamp to avoid clobbering
                 debug_filename = (
                     f"{settings.data_dir}/docling_debug_output_"
@@ -607,6 +609,8 @@ def ingest_file(
 
         norm_doc = {"source_id": source_id_val, "title": title_val, "blocks": blocks}
         doc_obj = DoclingDocument.model_validate(norm_doc)
+        # Ensure data_dir exists before saving
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
         # Save debug JSON with a UTC timestamp to avoid clobbering
         debug_filename = (
             f"{settings.data_dir}/docling_converted_output_"

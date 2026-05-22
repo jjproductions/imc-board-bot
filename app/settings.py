@@ -160,6 +160,10 @@ class AppSettings(BaseSettings):
 # Instantiate a singleton and fail fast on invalid configuration
 try:
     settings = AppSettings()
+    # Ensure necessary directories exist
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    settings.logs_dir.mkdir(parents=True, exist_ok=True)
+    settings.models_dir.mkdir(parents=True, exist_ok=True)
     print(  
         f"models dir: {settings.models_dir}, \
           embedding_model: {settings.vector.embedding_model}, \
