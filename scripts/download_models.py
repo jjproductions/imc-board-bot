@@ -134,7 +134,8 @@ def download_docling_models(target_dir: str, retries: int) -> bool:
     log(f"Downloading Docling Tools models -> {target_dir}")
 
     def try_cli():
-        base_cmd = ["docling-tools", "models", "download", "--all", "-o", target_dir]
+        # Download only layout and tableformer models to save ~29.5GB of space (skipping heavy Vision LLMs like Granite and SmolVLM)
+        base_cmd = ["docling-tools", "models", "download", "layout", "tableformer", "-o", target_dir]
         for attempt in range(1, retries + 1):
             log(f"(Docling CLI) Attempt {attempt}/{retries}: {' '.join(base_cmd)}")
             code, out = run_cmd(base_cmd)
