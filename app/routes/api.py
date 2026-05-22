@@ -44,7 +44,11 @@ if QdrantClient is None:
     raise RuntimeError(
         "Missing dependency 'qdrant-client'. Install with: pip install qdrant-client and ensure it's available in your environment."
     ) from _qdrant_import_err
-qdrant = QdrantClient(url=str(settings.qdrant.url), api_key=settings.qdrant.api_key)
+qdrant = QdrantClient(
+    url=str(settings.qdrant.url),
+    api_key=settings.qdrant.api_key,
+    timeout=120.0,  # Increase timeout to 60s for cold starts or cloud volume latency
+)
 
 # Note: models/tokenizer are initialized lazily via `app.deps.get_*`.
 # Avoid initializing heavy models at import time to prevent circular imports
@@ -58,6 +62,7 @@ def ensure_collection(collection_name: str, vector_dim: int):
     and cosine distance if it's missing.
     """
     try:
+        logging.getLogger("app").info(f"Attempting to connect to Qdrant at: {settings.qdrant.url}")
         existing = qdrant.get_collections().collections
     except Exception as e:
         raise RuntimeError(f"Failed to list qdrant collections: {e}")
@@ -128,9 +133,21 @@ def delete_chunk(chunk_id: int):
 
 @router.get("/health")
 def health():
+    qdrant_ok = False
+    error_msg = None
+    try:
+        qdrant.get_collections()
+        qdrant_ok = True
+    except Exception as e:
+        error_msg = str(e)
+
     return {
         "status": "ok",
-        "qdrant_url": settings.qdrant.url,
+        "qdrant": {
+            "status": "connected" if qdrant_ok else "disconnected",
+            "url": str(settings.qdrant.url),
+            "error": error_msg
+        },
         "collection_default": settings.qdrant.default_collection,
         "embedding_model": settings.vector.embedding_model,
         "embedding_dim": settings.vector.embedding_dim,
