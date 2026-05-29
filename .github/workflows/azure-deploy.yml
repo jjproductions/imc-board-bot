@@ -28,9 +28,12 @@ jobs:
       - name: Retrieve ACR Credentials
         id: acr-creds
         run: |
-          ACR_SERVER=$(az acr show --name ${{ secrets.ACR_NAME }} --query loginServer --output tsv)
-          USERNAME=$(az acr credential show --name ${{ secrets.ACR_NAME }} --query username -o tsv)
-          PASSWORD=$(az acr credential show --name ${{ secrets.ACR_NAME }} --query "passwords[0].value" -o tsv)
+          REGISTRY_NAME="${{ secrets.ACR_NAME }}"
+          REGISTRY_NAME="${REGISTRY_NAME:-imcregistry}"
+          echo "Using ACR registry: $REGISTRY_NAME"
+          ACR_SERVER=$(az acr show --name "$REGISTRY_NAME" --query loginServer --output tsv)
+          USERNAME=$(az acr credential show --name "$REGISTRY_NAME" --query username -o tsv)
+          PASSWORD=$(az acr credential show --name "$REGISTRY_NAME" --query "passwords[0].value" -o tsv)
           echo "server=$ACR_SERVER" >> $GITHUB_OUTPUT
           echo "username=$USERNAME" >> $GITHUB_OUTPUT
           echo "::add-mask::$PASSWORD"
