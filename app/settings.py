@@ -68,7 +68,11 @@ class VectorSettings(BaseSettings):
 
 
 class QdrantSettings(BaseModel):
-    url: AnyUrl = "http://localhost:6333"
+    url: Optional[str] = "http://localhost:6333"
+    host: Optional[str] = None
+    port: Optional[int] = None
+    grpc_port: Optional[int] = None
+    prefer_grpc: bool = False
     api_key: Optional[str] = None  # None is fine for local
     default_collection: str = "board-policies"
     remove_existing_collections: bool = Field(
@@ -129,6 +133,7 @@ class AppSettings(BaseSettings):
     # Flat Qdrant env overrides (e.g. from deploy_to_azure.sh)
     qdrant_host: Optional[str] = Field(default=None, env="QDRANT_HOST", validation_alias="QDRANT_HOST")
     qdrant_port: Optional[int] = Field(default=None, env="QDRANT_PORT", validation_alias="QDRANT_PORT")
+    qdrant_url: Optional[str] = Field(default=None, env="QDRANT_URL", validation_alias="QDRANT_URL")
 
     # Sections
     server: ServerSettings = ServerSettings()
@@ -141,10 +146,36 @@ class AppSettings(BaseSettings):
 
     @model_validator(mode="after")
     def resolve_qdrant_url(self) -> "AppSettings":
-        if self.qdrant_host:
+        if self.qdrant_url:
+            url_str = self.qdrant_url.strip()
+            if url_str.startswith("grpc://"):
+                rest = url_str[7:]
+                if ":" in rest:
+                    host, port_str = rest.split(":", 1)
+                    try:
+                        port = int(port_str)
+                    except ValueError:
+                        port = 80
+                else:
+                    host = rest
+                    port = 80
+                self.qdrant.host = host
+                self.qdrant.grpc_port = port
+                self.qdrant.prefer_grpc = True
+                self.qdrant.url = None
+            else:
+                self.qdrant.url = url_str
+                # Parse host and port for HTTP/HTTPS if needed
+                from urllib.parse import urlparse
+                parsed = urlparse(url_str)
+                self.qdrant.host = parsed.hostname
+                self.qdrant.port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        elif self.qdrant_host:
             port = self.qdrant_port or 6333
             scheme = "https" if port == 443 else "http"
-            self.qdrant.url = AnyUrl(f"{scheme}://{self.qdrant_host}:{port}")
+            self.qdrant.url = f"{scheme}://{self.qdrant_host}:{port}"
+            self.qdrant.host = self.qdrant_host
+            self.qdrant.port = port
         return self
 
     # Paths

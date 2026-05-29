@@ -25,6 +25,40 @@ jobs:
       - name: Get Release Timestamp
         run: echo "IMAGE_TAG=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
 
+      - name: Retrieve ACR Credentials
+        id: acr-creds
+        run: |
+          ACR_SERVER=$(az acr show --name ${{ secrets.ACR_NAME }} --query loginServer --output tsv)
+          USERNAME=$(az acr credential show --name ${{ secrets.ACR_NAME }} --query username -o tsv)
+          PASSWORD=$(az acr credential show --name ${{ secrets.ACR_NAME }} --query "passwords[0].value" -o tsv)
+          echo "server=$ACR_SERVER" >> $GITHUB_OUTPUT
+          echo "username=$USERNAME" >> $GITHUB_OUTPUT
+          echo "::add-mask::$PASSWORD"
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Log in to Azure Container Registry (ACR)
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ steps.acr-creds.outputs.server }}
+          username: ${{ steps.acr-creds.outputs.username }}
+          password: ${{ steps.acr-creds.outputs.password }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ steps.acr-creds.outputs.server }}/board-ingest-api:${{ env.IMAGE_TAG }}
+            ${{ steps.acr-creds.outputs.server }}/board-ingest-api:latest
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Make deployment script executable
         run: chmod +x scripts/deploy_to_azure.sh
 
@@ -39,4 +73,5 @@ jobs:
           ENV_NAME: ${{ secrets.ENV_NAME }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           QDRANT_DEFAULT_COLLECTION: ${{ secrets.QDRANT_DEFAULT_COLLECTION }}
+          SKIP_BUILD: 'true'
         run: ./scripts/deploy_to_azure.sh

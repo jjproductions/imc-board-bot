@@ -63,18 +63,20 @@ ACR_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer --output tsv)
 # ==========================================
 # 2. Build & Push API Image
 # ==========================================
-echo -e "\n[2/3] Building and pushing Ingest API image using Azure Container Registry..."
-
 IMAGE_URI="$ACR_SERVER/board-ingest-api:$IMAGE_TAG"
 
-# Build directly on Azure Container Registry to leverage cloud speed and layer caching
-az acr build \
-    --registry "$ACR_NAME" \
-    --image "board-ingest-api:$IMAGE_TAG" \
-    --platform linux/amd64 \
-    -f Dockerfile .
-
-echo "✅ Built and pushed image: $IMAGE_URI"
+if [[ "${SKIP_BUILD:-false}" == "true" ]]; then
+    echo -e "\n[2/3] Skipping ACR remote build because SKIP_BUILD=true (using pre-built image: $IMAGE_URI)"
+else
+    echo -e "\n[2/3] Building and pushing Ingest API image using Azure Container Registry..."
+    # Build directly on Azure Container Registry to leverage cloud speed and layer caching
+    az acr build \
+        --registry "$ACR_NAME" \
+        --image "board-ingest-api:$IMAGE_TAG" \
+        --platform linux/amd64 \
+        -f Dockerfile .
+    echo "✅ Built and pushed image: $IMAGE_URI"
+fi
 
 # ==========================================
 # Helper Function for Idempotent App Deploy

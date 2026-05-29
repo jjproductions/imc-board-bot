@@ -44,11 +44,23 @@ if QdrantClient is None:
     raise RuntimeError(
         "Missing dependency 'qdrant-client'. Install with: pip install qdrant-client and ensure it's available in your environment."
     ) from _qdrant_import_err
-qdrant = QdrantClient(
-    url=str(settings.qdrant.url),
-    api_key=settings.qdrant.api_key,
-    timeout=120.0,  # Increase timeout to 60s for cold starts or cloud volume latency
-)
+
+# Initialize QdrantClient with parsed options (supporting gRPC)
+client_kwargs = {
+    "api_key": settings.qdrant.api_key,
+    "timeout": 120.0,
+}
+if settings.qdrant.prefer_grpc:
+    client_kwargs["host"] = settings.qdrant.host
+    client_kwargs["grpc_port"] = settings.qdrant.grpc_port
+    client_kwargs["prefer_grpc"] = True
+elif settings.qdrant.url:
+    client_kwargs["url"] = str(settings.qdrant.url)
+else:
+    client_kwargs["host"] = settings.qdrant.host or "localhost"
+    client_kwargs["port"] = settings.qdrant.port or 6333
+
+qdrant = QdrantClient(**client_kwargs)
 
 # Note: models/tokenizer are initialized lazily via `app.deps.get_*`.
 # Avoid initializing heavy models at import time to prevent circular imports
@@ -61,8 +73,9 @@ def ensure_collection(collection_name: str, vector_dim: int):
     Ensure the named Qdrant collection exists; create it with the provided vector_dim
     and cosine distance if it's missing.
     """
+    qdrant_url = str(settings.qdrant.url) if settings.qdrant.url else f"grpc://{settings.qdrant.host}:{settings.qdrant.grpc_port}"
     try:
-        logging.getLogger("app").info(f"Attempting to connect to Qdrant at: {settings.qdrant.url}")
+        logging.getLogger("app").info(f"Attempting to connect to Qdrant at: {qdrant_url}")
         existing = qdrant.get_collections().collections
     except Exception as e:
         raise RuntimeError(f"Failed to list qdrant collections: {e}")
@@ -141,11 +154,13 @@ def health():
     except Exception as e:
         error_msg = str(e)
 
+    qdrant_url = str(settings.qdrant.url) if settings.qdrant.url else f"grpc://{settings.qdrant.host}:{settings.qdrant.grpc_port}"
+
     return {
         "status": "ok",
         "qdrant": {
             "status": "connected" if qdrant_ok else "disconnected",
-            "url": str(settings.qdrant.url),
+            "url": qdrant_url,
             "error": error_msg
         },
         "collection_default": settings.qdrant.default_collection,
