@@ -7,6 +7,7 @@ from ..utilities import embed_texts, chunk_blocks, batched
 from pathlib import Path
 import logging
 import uuid
+import asyncio
 from datetime import datetime, timezone
 from qdrant_client.models import PointStruct as QdrantPointStruct
 import tempfile
@@ -179,7 +180,7 @@ def create_collection(collection_name: str, vector_dim: Optional[int] = None):
 
 
 @router.post("/ingest", response_model=IngestResponse)
-def ingest_doc(
+async def ingest_doc(
     doc: DoclingDocument,
     collection: Optional[str] = None,
     max_tokens: int = settings.chunking.max_tokens,
@@ -206,7 +207,7 @@ def ingest_doc(
         raise HTTPException(status_code=400, detail="No chunks produced from document.")
 
     texts = [c["text"] for c in chunks]
-    dense_vectors, sparse_vectors = embed_texts(texts)
+    dense_vectors, sparse_vectors = await asyncio.to_thread(embed_texts, texts)
 
     points = []
     for idx, (c, dense_vec, sparse_vec) in enumerate(zip(chunks, dense_vectors, sparse_vectors)):
@@ -249,7 +250,7 @@ def ingest_doc(
 
 
 @router.post("/ingest-file", response_model=IngestResponse)
-def ingest_file(
+async def ingest_file(
     file: UploadFile = File(...),
     collection: Optional[str] = Form(None),
     max_tokens: int = settings.chunking.max_tokens,
@@ -712,7 +713,7 @@ def ingest_file(
         )
 
     # Delegate to the existing ingest_doc logic to avoid duplication
-    return ingest_doc(
+    return await ingest_doc(
         doc_obj,
         collection=collection,
         max_tokens=max_tokens,
