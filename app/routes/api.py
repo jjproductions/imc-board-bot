@@ -251,6 +251,23 @@ async def ingest_doc(
         
         points.append(QdrantPointStruct(id=chunk_id, vector=vector, payload=payload))
 
+    # Delete any existing chunks for this source_id in the collection to prevent duplicates
+    try:
+        qdrant.delete(
+            collection_name=coll,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(
+                        key="source_id",
+                        match=MatchValue(value=doc.source_id)
+                    )
+                ]
+            )
+        )
+        logging.getLogger("app").info(f"Cleared existing points for source_id '{doc.source_id}' before re-ingestion.")
+    except Exception as e:
+        logging.getLogger("app").warning(f"Could not delete existing points for source_id '{doc.source_id}': {e}")
+
     upserted = 0
     for batch in batched(points, batch_size):
         qdrant.upsert(collection_name=coll, points=batch)
@@ -727,3 +744,50 @@ async def ingest_file(
         batch_size=batch_size,
         file_name=debug_filename,
     )
+
+
+@router.delete("/documents/{source_id:path}")
+def delete_document(
+    source_id: str,
+    collection: Optional[str] = None,
+):
+    """
+    Delete all chunks associated with a specific source_id from a Qdrant collection.
+    """
+    coll = collection if collection and collection != "string" else settings.qdrant.default_collection
+    
+    try:
+        # Check if collection exists
+        existing = qdrant.get_collections().collections
+        if not any(col.name == coll for col in existing):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{coll}' not found."
+            )
+            
+        # Delete from Qdrant by filtering on source_id
+        res = qdrant.delete(
+            collection_name=coll,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(
+                        key="source_id",
+                        match=MatchValue(value=source_id)
+                    )
+                ]
+            )
+        )
+        return {
+            "status": "success",
+            "message": f"Successfully deleted all chunks for document '{source_id}' from collection '{coll}'",
+            "details": str(res)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger("app").exception(f"Failed to delete document '{source_id}' from Qdrant:")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete document from database: {e}"
+        )
+
