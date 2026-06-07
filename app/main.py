@@ -1,5 +1,5 @@
-from fastapi import FastAPI
-from .routes.api import router as api_router
+from fastapi import FastAPI, Depends
+from .routes.api import router as api_router, public_router as public_api_router
 from .settings import settings
 import logging
 from dotenv import load_dotenv
@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
-from .deps import init_models
+from .deps import init_models, require_api_key
 
 # Use the Lifespan context manager instead of the deprecated @app.on_event
 @asynccontextmanager
@@ -54,7 +54,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 # Routes
-app.include_router(api_router, prefix="/api")
+app.include_router(public_api_router, prefix="/api")
+app.include_router(api_router, prefix="/api", dependencies=[Depends(require_api_key)])
 
 
 # class SearchRequest(BaseModel):

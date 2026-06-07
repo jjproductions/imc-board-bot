@@ -124,6 +124,7 @@ class AppSettings(BaseSettings):
 
     # Core
     app_name: str = Field(default="Board Policy Bot API", env="APP_NAME")
+    api_key: str = Field(default="local-key", validation_alias="API_KEY")
     environment: AppEnvironment = ENV  # bound to ENV
     debug: bool = ENV == "development"
     document_repository_path: Optional[str] = Field(

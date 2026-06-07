@@ -28,6 +28,7 @@ services:
       - QDRANT__DEFAULT_COLLECTION=${QDRANT__DEFAULT_COLLECTION:-board-policies}
       # Increase timeout if models are loading
       - CHUNKING__MAX_TOKENS=800
+      - API_KEY=${API_KEY:-local-key}
 
     restart: unless-stopped
     networks:

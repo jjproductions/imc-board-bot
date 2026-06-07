@@ -17,6 +17,7 @@ ACR_NAME="${ACR_NAME:-imcregistry}"
 ENV_NAME="${ENV_NAME:-imc-rag-env}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 QDRANT_DEFAULT_COLLECTION="${QDRANT_DEFAULT_COLLECTION:-board-policies-hybrid}"
+API_KEY="${API_KEY:-sk-rag-demo}"
 
 # ==========================================
 # 1. Base Infrastructure (Idempotent)
@@ -162,7 +163,8 @@ deploy_container_app "board-ingest-api" \
         "QDRANT__DEFAULT_COLLECTION=$QDRANT_DEFAULT_COLLECTION" \
         "HF_HUB_OFFLINE=1" \
         "TRANSFORMERS_OFFLINE=1" \
-        "HF_HOME=/app/models"
+        "HF_HOME=/app/models" \
+        "API_KEY=$API_KEY"
 echo "✅ FastAPI Ingest API deployed."
 
 # Get API External FQDN
