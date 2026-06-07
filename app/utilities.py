@@ -260,15 +260,33 @@ def chunk_blocks(
 
 
 def embed_texts(texts: List[str]) -> Tuple[List[List[float]], List[Any]]:
+    import gc
+    
+    # 1. Dense embeddings (embedded sequentially in small batches of 4 to minimize peak memory)
     embedder = get_embedder()
+    dense_list = []
+    batch_size = 4
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        res = list(embedder.embed(batch, batch_size=len(batch)))
+        dense_list.extend([v.tolist() for v in res])
+        
+    del embedder
+    gc.collect()
+    
+    # 2. Sparse embeddings (embedded sequentially in small batches of 4 to minimize peak memory)
     sparse_embedder = get_sparse_embedder()
-    
-    dense_embs = list(embedder.embed(texts, batch_size=32))
-    dense_list = [v.tolist() for v in dense_embs]
-    
-    sparse_list = list(sparse_embedder.embed(texts, batch_size=32))
+    sparse_list = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        res = list(sparse_embedder.embed(batch, batch_size=len(batch)))
+        sparse_list.extend(res)
+        
+    del sparse_embedder
+    gc.collect()
     
     return dense_list, sparse_list
+
 
 
 def batched(iterable, n: int):
