@@ -15,6 +15,7 @@ import os
 import json
 
 router = APIRouter()
+public_router = APIRouter()
 
 # qdrant-client may not be available in all environments (editor/CI); import at runtime
 # and surface a clear error message if missing.
@@ -145,7 +146,7 @@ def delete_chunk(chunk_id: int):
     return None
 
 
-@router.get("/health")
+@public_router.get("/health")
 def health():
     qdrant_ok = False
     error_msg = None

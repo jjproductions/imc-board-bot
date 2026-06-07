@@ -8,6 +8,9 @@ Provide `init_models()`, `get_embedder()`, `get_sparse_embedder()`, and `get_tok
 from threading import Lock
 from typing import Optional
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 from .settings import settings
 
 _lock = Lock()
@@ -82,4 +85,18 @@ def get_sparse_embedder() -> object:
         cache_dir=str(settings.models_dir),
         threads=2
     )
+
+
+security = HTTPBearer()
+
+
+def require_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> None:
+    """Validate incoming API requests against settings.api_key."""
+    if credentials.credentials != settings.api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
 
