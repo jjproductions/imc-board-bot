@@ -18,13 +18,6 @@ ENV_NAME="${ENV_NAME:-imc-rag-env}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 QDRANT_DEFAULT_COLLECTION="${QDRANT_DEFAULT_COLLECTION:-board-policies-hybrid}"
 
-# IMPORTANT: Ensure AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT are set in your environment
-if [[ -z "$AZURE_OPENAI_API_KEY" ]] || [[ -z "$AZURE_OPENAI_ENDPOINT" ]]; then
-    echo "❌ ERROR: AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT must be set."
-    echo "Run: export AZURE_OPENAI_API_KEY='your-key' && export AZURE_OPENAI_ENDPOINT='your-endpoint'"
-    exit 1
-fi
-
 # ==========================================
 # 1. Base Infrastructure (Idempotent)
 # ==========================================
@@ -164,13 +157,12 @@ deploy_container_app "board-ingest-api" \
     --ingress external \
     --cpu 2.0 --memory 4.0Gi \
     --min-replicas 1 --max-replicas 3 \
-    --secrets "openai-key=$AZURE_OPENAI_API_KEY" \
     --env-vars \
-        "QDRANT_HOST=$QDRANT_FQDN" \
-        "QDRANT_PORT=443" \
+        "QDRANT_URL=http://$QDRANT_FQDN:80" \
         "QDRANT__DEFAULT_COLLECTION=$QDRANT_DEFAULT_COLLECTION" \
-        "AZURE_OPENAI_API_KEY=secretref:openai-key" \
-        "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT"
+        "HF_HUB_OFFLINE=1" \
+        "TRANSFORMERS_OFFLINE=1" \
+        "HF_HOME=/app/models"
 echo "✅ FastAPI Ingest API deployed."
 
 # Get API External FQDN

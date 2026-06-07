@@ -31,6 +31,11 @@ COPY scripts/download_models.py ./scripts/download_models.py
 # Pre-download and bake ML models (cached unless download_models.py changes)
 RUN python scripts/download_models.py --models-dir ./models
 
+# Set runtime offline flags and home directory for HF/Transformers models
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_HOME=/app/models
+
 # Copy the rest of the application code (frequently changing, but fast!)
 COPY app ./app
 COPY scripts ./scripts

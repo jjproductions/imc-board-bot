@@ -66,3 +66,11 @@ def test_ingest_async_executor():
         assert data["source_id"] == "test-doc-123"
         
         assert mock_qdrant.upsert.called
+
+
+def test_delete_collection():
+    with patch("app.routes.api.qdrant") as mock_qdrant:
+        client = TestClient(app)
+        r = client.delete("/api/collections/test-collection")
+        assert r.status_code == 204
+        mock_qdrant.delete_collection.assert_called_once_with("test-collection")

@@ -260,11 +260,10 @@ def chunk_blocks(
 
 
 def embed_texts(texts: List[str]) -> Tuple[List[List[float]], List[Any]]:
-    # bge-m3: normalize for cosine similarity
     embedder = get_embedder()
     sparse_embedder = get_sparse_embedder()
     
-    dense_embs = embedder.encode(texts, normalize_embeddings=True)
+    dense_embs = list(embedder.embed(texts, batch_size=32))
     dense_list = [v.tolist() for v in dense_embs]
     
     sparse_list = list(sparse_embedder.embed(texts, batch_size=32))

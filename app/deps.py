@@ -17,6 +17,17 @@ _tokenizer: Optional[object] = None
 _init_error: Optional[Exception] = None
 
 
+class FastTokenizerWrapper:
+    def __init__(self, tokenizer_obj):
+        self._tokenizer = tokenizer_obj
+
+    def encode(self, text: str, add_special_tokens: bool = True):
+        return self._tokenizer.encode(text, add_special_tokens=add_special_tokens).ids
+
+    def decode(self, ids: list[int], skip_special_tokens: bool = True):
+        return self._tokenizer.decode(ids, skip_special_tokens=skip_special_tokens)
+
+
 def init_models() -> None:
     """Initialize embedding model and tokenizer once.
 
@@ -27,20 +38,24 @@ def init_models() -> None:
         if _embedder is not None and _tokenizer is not None and _sparse_embedder is not None:
             return
         try:
-            from sentence_transformers import SentenceTransformer
-            from fastembed import SparseTextEmbedding
+            from fastembed import TextEmbedding, SparseTextEmbedding
+            from tokenizers import Tokenizer
 
-            model_path = str(settings.vector.embedding_model)
-            local_path = settings.models_dir / model_path
-            if local_path.exists() and local_path.is_dir():
-                model_path = str(local_path)
-
-            _embedder = SentenceTransformer(
-                model_path, 
-                cache_folder=str(settings.models_dir),
-                model_kwargs={"use_safetensors": False}
+            _embedder = TextEmbedding(
+                model_name=str(settings.vector.embedding_model),
+                cache_dir=str(settings.models_dir)
             )
-            _tokenizer = _embedder.tokenizer
+            # Attempt to find and load local cached tokenizer.json to avoid runtime network calls
+            model_name_clean = str(settings.vector.embedding_model).split("/")[-1]
+            glob_pattern = f"**/models--*{model_name_clean}*/snapshots/*/tokenizer.json"
+            tokenizer_files = list(settings.models_dir.glob(glob_pattern))
+            
+            if tokenizer_files:
+                raw_tokenizer = Tokenizer.from_file(str(tokenizer_files[0]))
+            else:
+                raw_tokenizer = Tokenizer.from_pretrained(str(settings.vector.embedding_model))
+                
+            _tokenizer = FastTokenizerWrapper(raw_tokenizer)
             _sparse_embedder = SparseTextEmbedding(
                 model_name=str(settings.vector.sparse_embedding_model),
                 cache_dir=str(settings.models_dir)

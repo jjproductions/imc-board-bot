@@ -7,8 +7,8 @@ pydantic-settings==2.12.0
 python-dotenv==1.0.1
 qdrant-client==1.9.2
 docling[easyocr]==2.87.0
-sentence-transformers==5.2.2
 fastembed==0.8.0
+tokenizers==0.22.0
 huggingface-hub==0.34.4
 requests==2.32.5
 
