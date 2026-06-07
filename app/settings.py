@@ -60,7 +60,7 @@ class VectorSettings(BaseSettings):
     )
 
     # Your default preferences
-    embedding_model: str = Field(default="BAAI/bge-m3", env="EMBEDDING_MODEL") # either name or path to model..can be relative to models dir
+    embedding_model: str = Field(default="BAAI/bge-large-en-v1.5", env="EMBEDDING_MODEL") # either name or path to model..can be relative to models dir
     sparse_embedding_model: str = Field(default="prithivida/Splade_PP_en_v1", env="SPARSE_EMBEDDING_MODEL")
     embedding_dim: int = Field(default=1024, ge=1)
     normalized: bool = True

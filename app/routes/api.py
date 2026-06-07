@@ -179,6 +179,21 @@ def create_collection(collection_name: str, vector_dim: Optional[int] = None):
     }
 
 
+@router.delete("/collections/{collection_name}", status_code=204)
+def delete_collection_endpoint(collection_name: str):
+    """
+    Delete a collection from Qdrant by name.
+    """
+    try:
+        qdrant.delete_collection(collection_name)
+        return None
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete collection '{collection_name}': {e}"
+        )
+
+
 @router.post("/ingest", response_model=IngestResponse)
 async def ingest_doc(
     doc: DoclingDocument,

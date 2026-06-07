@@ -190,32 +190,47 @@ def download_docling_models(target_dir: str, retries: int) -> bool:
     return False
 
 
-def download_fastembed_model(target_dir: str, retries: int) -> bool:
+def download_fastembed_models(target_dir: str, retries: int) -> bool:
     """
-    Download the fastembed sparse embedding model (prithivida/Splade_PP_en_v1)
+    Download the fastembed sparse (prithivida/Splade_PP_en_v1) and dense (BAAI/bge-large-en-v1.5) models
     to the target models directory.
     """
-    model_name = "prithivida/Splade_PP_en_v1"
-    log(f"Downloading Fastembed sparse model: {model_name} -> {target_dir}")
     try:
-        from fastembed import SparseTextEmbedding
+        from fastembed import SparseTextEmbedding, TextEmbedding
     except ImportError:
         log("fastembed not found; installing...")
         if not pip_install(["fastembed>=0.3.0"]):
             log("Failed to install fastembed.")
             return False
-        from fastembed import SparseTextEmbedding # re-import after install
+        from fastembed import SparseTextEmbedding, TextEmbedding # re-import after install
 
+    ok_sparse = False
+    sparse_model = "prithivida/Splade_PP_en_v1"
+    log(f"Downloading Fastembed sparse model: {sparse_model} -> {target_dir}")
     for attempt in range(1, retries + 1):
         try:
-            # Initializing triggers automatic model download to cache_dir
-            SparseTextEmbedding(model_name=model_name, cache_dir=target_dir)
+            SparseTextEmbedding(model_name=sparse_model, cache_dir=target_dir)
             log("Fastembed sparse model download succeeded.")
-            return True
+            ok_sparse = True
+            break
         except Exception as e:
             log(f"Fastembed sparse model download error: {e}")
             time.sleep(2 * attempt)
-    return False
+
+    ok_dense = False
+    dense_model = "BAAI/bge-large-en-v1.5"
+    log(f"Downloading Fastembed dense model: {dense_model} -> {target_dir}")
+    for attempt in range(1, retries + 1):
+        try:
+            TextEmbedding(model_name=dense_model, cache_dir=target_dir)
+            log("Fastembed dense model download succeeded.")
+            ok_dense = True
+            break
+        except Exception as e:
+            log(f"Fastembed dense model download error: {e}")
+            time.sleep(2 * attempt)
+
+    return ok_sparse and ok_dense
 
 
 def main():
@@ -251,14 +266,11 @@ def main():
     ensure_dir(args.models_dir)
 
     log(f"Target root: {args.models_dir}")
-    log(f"HF model dir: {hf_dir}")
     log(f"Docling dir  : {docling_dir}")
 
-    ok_hf = download_hf_model(
-        target_dir=hf_dir, retries=args.retries, revision=args.hf_revision
-    )
+    ok_hf = True  # We no longer download standard HF models since we use FastEmbed
     ok_doc = download_docling_models(target_dir=docling_dir, retries=args.retries)
-    ok_fe = download_fastembed_model(target_dir=args.models_dir, retries=args.retries)
+    ok_fe = download_fastembed_models(target_dir=args.models_dir, retries=args.retries)
 
     if ok_hf and ok_doc and ok_fe:
         log("✅ All downloads completed successfully.")
