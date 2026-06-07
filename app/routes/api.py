@@ -272,216 +272,207 @@ async def ingest_file(
     # Save uploaded file to a temp file
     tmp_dir = tempfile.mkdtemp()
     tmp_path = os.path.join(tmp_dir, file.filename)
-    with open(tmp_path, "wb") as fh:
-        fh.write(file.file.read())
+    try:
+        with open(tmp_path, "wb") as fh:
+            fh.write(file.file.read())
 
-    logging.getLogger("app").info(f"Saved uploaded file to temp path: {tmp_path}")
-    # Prefer an HTTP Docling service if `DOCLING_URL` is configured (e.g. Docker)
-    docling_url = settings.docling.url
-    parsed = None
-    if docling_url:
-        # Use the Docling HTTP service (expects a /parse endpoint returning JSON)
-        print(f"Using Docling HTTP service at {docling_url} to parse uploaded file...")
-        try:
-            import requests
-        except Exception:
-            os.unlink(tmp_path)
-            raise HTTPException(
-                status_code=500,
-                detail="Missing dependency 'requests' required to call Docling HTTP service.",
-            )
-
-        parse_url = docling_url.rstrip("/") + "/v1/convert/file"
-        logging.getLogger("app").info(
-            f"Using Docling HTTP service at {parse_url} to parse uploaded file."
-        )
-        try:
-            with open(tmp_path, "rb") as fh:
-                files = {
-                    "files": (
-                        file.filename,
-                        fh,
-                        file.content_type or "application/pdf",
-                    ),
-                    "options": (
-                        None,
-                        json.dumps(
-                            {
-                                "to_formats": ["json"],  # list form is also accepted
-                                "pdf_backend": "dlparse_v4",
-                                "do_ocr": False,
-                                "do_table_structure": True,
-                                "table_mode": "accurate",
-                            }
-                        ),
-                        "application/json",
-                    ),
-                }
-                # Request Docling HTTP service using the flat profile
-                resp = requests.post(parse_url, files=files, timeout=(5, 300))
-        except Exception as e:
-            os.unlink(tmp_path)
-            raise HTTPException(
-                status_code=502, detail=f"Failed to contact docling service: {e}"
-            )
-
-        # Clean up temp file
-        os.unlink(tmp_path)
-
-        if resp.status_code != 200:
-            msg = (resp.text or "").strip()[:1000]
-            raise HTTPException(
-                status_code=500,
-                detail=f"docling service error: {resp.status_code} {msg}",
-            )
-
-        try:
-            parsed = resp.json()
-            dump = parsed
-            print(
-                "Parsed JSON from Docling service:\n",
-                json.dumps(dump.keys(), indent=2, ensure_ascii=False),
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"docling returned non-JSON: {e}"
-            )
-    else:
-        # Fallback to invoking local `docling` CLI
-        try:
-            print("Use local `docling` package to parse uploaded file...")
-
-            from docling.document_converter import DocumentConverter, PdfFormatOption
-            from docling.datamodel.base_models import InputFormat
-            from docling.datamodel.pipeline_options import (
-                PdfPipelineOptions,
-                TableStructureOptions,
-                AcceleratorOptions,
-            )
-            from docling.backend.docling_parse_backend import (
-                DoclingParseDocumentBackend,
-            )
-
-            # from quackling.llama_index.readers import DoclingPDFReader
-
-            source = tmp_path  # file path or URL
-
-            # Determine artifacts path; if it doesn't exist or is empty, fallback to default (None)
-            docling_artifacts_path = None
-            raw_artifacts_path = settings.models_dir / (settings.docling.artifact_path or "")
-            if settings.docling.artifact_path:
-                if not Path(settings.docling.artifact_path or "").is_absolute():
-                    pass  # already joined with models_dir above
-                else:
-                    raw_artifacts_path = Path(settings.docling.artifact_path)
-
-                if raw_artifacts_path.exists() and raw_artifacts_path.is_dir() and any(raw_artifacts_path.iterdir()):
-                    docling_artifacts_path = str(raw_artifacts_path)
-                else:
-                    logging.getLogger("app").warning(
-                        f"Docling artifacts path '{raw_artifacts_path}' not found or empty. Using default cache."
-                    )
-                    
-            pipeline_opts = PdfPipelineOptions(
-                artifacts_path=docling_artifacts_path,
-                do_ocr=False,
-                do_table_structure=True,  # use TableFormer to get structured tables
-                table_structure_options=TableStructureOptions(
-                    do_cell_matching=True,  # often good with dlparse_v4
-                    # mode can be "fast" or "accurate" depending on your needs
-                    # mode=TableFormerMode.ACCURATE
-                ),
-                accelerator_options=AcceleratorOptions(num_threads=4, device="auto"),
-            )
-            converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: PdfFormatOption(
-                        pipeline_options=pipeline_opts,
-                        backend=DoclingParseDocumentBackend,
-                    )
-                },
-            )
-            print("Invoking local docling converter...")
-            proc = converter.convert(source)
-            # Convert the returned Docling Document object into a plain dict
-            # and also produce a JSON string for logging/return if desired.
+        logging.getLogger("app").info(f"Saved uploaded file to temp path: {tmp_path}")
+        # Prefer an HTTP Docling service if `DOCLING_URL` is configured (e.g. Docker)
+        docling_url = settings.docling.url
+        parsed = None
+        if docling_url:
+            # Use the Docling HTTP service (expects a /parse endpoint returning JSON)
+            logging.getLogger("app").info(f"Using Docling HTTP service at {docling_url} to parse uploaded file...")
             try:
-                if hasattr(proc.document, "export_to_dict"):
-                    parsed = proc.document.export_to_dict()
-                # elif hasattr(proc, "as_dict"):
-                #     parsed = proc.as_dict()
-                # elif hasattr(proc, "save_as_json"):
-                #     parsed = json.loads(proc.save_as_json())
-                else:
-                    raise RuntimeError(
-                        "Unsupported Docling document object: no known export method"
-                    )
-
-                # Use FastAPI's jsonable_encoder to handle non-JSON-native types
-                try:
-                    from fastapi.encoders import jsonable_encoder
-                    
-                    serializable = jsonable_encoder(parsed)
-                except Exception:
-                    # Fallback: assume proc_dict is already JSON-serializable
-                    serializable = parsed
-
-                # JSON string (useful for returning/storing raw JSON)
-                proc_json = json.dumps(serializable, ensure_ascii=False)
-
-                # Ensure data_dir exists before saving
-                settings.data_dir.mkdir(parents=True, exist_ok=True)
-                # Save debug JSON with a UTC timestamp to avoid clobbering
-                debug_filename = (
-                    f"{settings.data_dir}/docling_debug_output_"
-                    f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
-                )
-                proc.document.save_as_json(filename=debug_filename)
-                logging.getLogger("app").info(
-                    "Docling document keys: %s",
-                    (
-                        list(parsed.keys())
-                        if isinstance(parsed, dict)
-                        else str(type(parsed))
-                    ),
-                )
-            except Exception as e:
-                os.unlink(tmp_path)
+                import requests
+            except Exception:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Failed to convert local docling output: {e}",
+                    detail="Missing dependency 'requests' required to call Docling HTTP service.",
                 )
 
-        except FileNotFoundError as e:
-            os.unlink(tmp_path)
-            # Differentiate between 'docling' CLI/module missing and other file errors
-            import traceback
-            traceback.print_exc()
-            raise HTTPException(
-                status_code=500,
-                detail=(
-                    f"File not found error (possible missing model file?): {e}. "
-                    "Ensure 'docling' is installed and models are present."
-                ),
+            parse_url = docling_url.rstrip("/") + "/v1/convert/file"
+            logging.getLogger("app").info(
+                f"Using Docling HTTP service at {parse_url} to parse uploaded file."
             )
-        except ValueError as e:
-            logging.getLogger("app").exception("Invalid options")
-            raise HTTPException(status_code=400, detail=f"Invalid options: {e}")
-        except Exception as e:
-            logging.getLogger("app").exception("Docling conversion failure")
-            raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
+            try:
+                with open(tmp_path, "rb") as fh_in:
+                    files = {
+                        "files": (
+                            file.filename,
+                            fh_in,
+                            file.content_type or "application/pdf",
+                        ),
+                        "options": (
+                            None,
+                            json.dumps(
+                                {
+                                    "to_formats": ["json"],  # list form is also accepted
+                                    "pdf_backend": "dlparse_v4",
+                                    "do_ocr": False,
+                                    "do_table_structure": True,
+                                    "table_mode": "accurate",
+                                }
+                            ),
+                            "application/json",
+                        ),
+                    }
+                    # Request Docling HTTP service using the flat profile
+                    resp = requests.post(parse_url, files=files, timeout=(5, 300))
+            except Exception as e:
+                raise HTTPException(
+                    status_code=502, detail=f"Failed to contact docling service: {e}"
+                )
 
-        # Clean up temp file (we already converted the document to `parsed` above)
-        os.unlink(tmp_path)
-        logging.getLogger("app").info(f"Deleted temp file: {tmp_path}")
+            if resp.status_code != 200:
+                msg = (resp.text or "").strip()[:1000]
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"docling service error: {resp.status_code} {msg}",
+                )
+
+            try:
+                parsed = resp.json()
+                dump = parsed
+                logging.getLogger("app").info(
+                    "Parsed JSON keys from Docling service: %s",
+                    list(dump.keys()),
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500, detail=f"docling returned non-JSON: {e}"
+                )
+        else:
+            # Fallback to invoking local `docling` CLI
+            try:
+                logging.getLogger("app").info("Use local `docling` package to parse uploaded file...")
+
+                from docling.document_converter import DocumentConverter, PdfFormatOption
+                from docling.datamodel.base_models import InputFormat
+                from docling.datamodel.pipeline_options import (
+                    PdfPipelineOptions,
+                    TableStructureOptions,
+                    AcceleratorOptions,
+                )
+                from docling.backend.docling_parse_backend import (
+                    DoclingParseDocumentBackend,
+                )
+
+                source = tmp_path  # file path or URL
+
+                # Determine artifacts path; if it doesn't exist or is empty, fallback to default (None)
+                docling_artifacts_path = None
+                raw_artifacts_path = settings.models_dir / (settings.docling.artifact_path or "")
+                if settings.docling.artifact_path:
+                    if not Path(settings.docling.artifact_path or "").is_absolute():
+                        pass  # already joined with models_dir above
+                    else:
+                        raw_artifacts_path = Path(settings.docling.artifact_path)
+
+                    if raw_artifacts_path.exists() and raw_artifacts_path.is_dir() and any(raw_artifacts_path.iterdir()):
+                        docling_artifacts_path = str(raw_artifacts_path)
+                    else:
+                        logging.getLogger("app").warning(
+                            f"Docling artifacts path '{raw_artifacts_path}' not found or empty. Using default cache."
+                        )
+                        
+                pipeline_opts = PdfPipelineOptions(
+                    artifacts_path=docling_artifacts_path,
+                    do_ocr=False,
+                    do_table_structure=True,  # use TableFormer to get structured tables
+                    table_structure_options=TableStructureOptions(
+                        do_cell_matching=True,  # often good with dlparse_v4
+                        # mode can be "fast" or "accurate" depending on your needs
+                        # mode=TableFormerMode.ACCURATE
+                    ),
+                    accelerator_options=AcceleratorOptions(num_threads=4, device="auto"),
+                )
+                converter = DocumentConverter(
+                    format_options={
+                        InputFormat.PDF: PdfFormatOption(
+                            pipeline_options=pipeline_opts,
+                            backend=DoclingParseDocumentBackend,
+                        )
+                    },
+                )
+                logging.getLogger("app").info("Invoking local docling converter...")
+                proc = converter.convert(source)
+                # Convert the returned Docling Document object into a plain dict
+                # and also produce a JSON string for logging/return if desired.
+                try:
+                    if hasattr(proc.document, "export_to_dict"):
+                        parsed = proc.document.export_to_dict()
+                    else:
+                        raise RuntimeError(
+                            "Unsupported Docling document object: no known export method"
+                        )
+
+                    # Use FastAPI's jsonable_encoder to handle non-JSON-native types
+                    try:
+                        from fastapi.encoders import jsonable_encoder
+                        
+                        serializable = jsonable_encoder(parsed)
+                    except Exception:
+                        # Fallback: assume proc_dict is already JSON-serializable
+                        serializable = parsed
+
+                    # JSON string (useful for returning/storing raw JSON)
+                    proc_json = json.dumps(serializable, ensure_ascii=False)
+
+                    # Ensure data_dir exists before saving
+                    settings.data_dir.mkdir(parents=True, exist_ok=True)
+                    # Save debug JSON with a UTC timestamp to avoid clobbering
+                    debug_filename = (
+                        f"{settings.data_dir}/docling_debug_output_"
+                        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+                    )
+                    proc.document.save_as_json(filename=debug_filename)
+                    logging.getLogger("app").info(
+                        "Docling document keys: %s",
+                        (
+                            list(parsed.keys())
+                            if isinstance(parsed, dict)
+                            else str(type(parsed))
+                        ),
+                    )
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to convert local docling output: {e}",
+                    )
+
+            except FileNotFoundError as e:
+                # Differentiate between 'docling' CLI/module missing and other file errors
+                import traceback
+                traceback.print_exc()
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        f"File not found error (possible missing model file?): {e}. "
+                        "Ensure 'docling' is installed and models are present."
+                    ),
+                )
+            except ValueError as e:
+                logging.getLogger("app").exception("Invalid options")
+                raise HTTPException(status_code=400, detail=f"Invalid options: {e}")
+            except Exception as e:
+                logging.getLogger("app").exception("Docling conversion failure")
+                raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
+    finally:
+        import shutil
+        try:
+            shutil.rmtree(tmp_dir)
+            logging.getLogger("app").info(f"Cleaned up temporary directory: {tmp_dir}")
+        except Exception as e:
+            logging.getLogger("app").error(f"Failed to clean up temporary directory {tmp_dir}: {e}")
 
     # If parsed already matches DoclingDocument (has source_id & blocks), use it.
     if isinstance(parsed, dict) and parsed.get("source_id") and parsed.get("blocks"):
         # Normalize possible page information that may be embedded in block.meta
         # or under different keys produced by different docling versions/backends.
-        print("Normalizing parsed blocks for page information...")
+        logging.getLogger("app").info("Normalizing parsed blocks for page information...")
         for b in parsed.get("blocks", []):
-            print("Parsed Block JSON:\n", json.dumps(b, indent=2))
+            logging.getLogger("app").debug("Parsed Block JSON:\n%s", json.dumps(b, indent=2))
             if b.get("page") is None:
                 meta = b.get("meta") or {}
                 # Common alternative keys where page might live
@@ -662,7 +653,7 @@ async def ingest_file(
             )
     else:
         # Fallback conversion: expect a `document` object with `md_content` (markdown)
-        print("Converting parsed output to DoclingDocument from markdown content...")
+        logging.getLogger("app").info("Converting parsed output to DoclingDocument from markdown content...")
         info = parsed.get("document", {}) if isinstance(parsed, dict) else {}
         md = info.get("md_content") or info.get("text") or info.get("content") or ""
         title = source_id or info.get("filename") or file.filename
